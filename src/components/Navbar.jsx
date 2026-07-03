@@ -6,12 +6,12 @@ import { User, Users, Target, PlusCircle } from 'lucide-react';
 export default function Navbar() {
   const pathname = usePathname();
 
-  const navItems = [
-    { name: 'Eduin', href: '/dashboard/eduin', icon: User, color: 'text-blue-500' },
-    { name: 'Majo', href: '/dashboard/majo', icon: User, color: 'text-pink-500' },
-    { name: 'Hogar', href: '/dashboard/hogar', icon: Users, color: 'text-emerald-500' },
-    { name: 'Metas', href: '/dashboard/metas', icon: Target, color: 'text-purple-500' },
-  ];
+const navItems = [
+  { name: 'Eduin', href: '/dashboard/eduin', icon: User, color: 'text-blue-500' },
+  { name: 'Majo', href: '/dashboard/majo', icon: User, color: 'text-pink-500' },
+  { name: 'Hogar', href: '/dashboard/hogar', icon: Users, color: 'text-emerald-500' },
+  { name: 'Metas', href: '/dashboard/metas', icon: Target, color: 'text-purple-500' },
+];
 
   return (
     <>
