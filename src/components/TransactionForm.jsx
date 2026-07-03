@@ -21,14 +21,18 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
   // Cargar categorías y cuentas al montar el componente
   useEffect(() => {
     async function loadFormOptions() {
-      const { data: catData } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
-      const { data: cuentaData } = await supabase.from('cuentas_bancarias').select('*');
-      
-      if (catData) setCategorias(catData);
-      if (cuentaData) setCuentas(cuentaData);
+      try {
+        const { data: catData } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
+        const { data: cuentaData } = await supabase.from('cuentas_bancarias').select('*');
+        
+        if (catData) setCategorias(catData);
+        if (cuentaData) setCuentas(cuentaData);
+      } catch (err) {
+        console.error("Error cargando opciones del formulario:", err);
+      }
     }
     loadFormOptions();
-  } [], []);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,7 +42,7 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
     }
 
     const success = await createTransaction({
-      userId,
+      userId: userId || '00000000-0000-0000-0000-000000000000', // ID temporal si no hay sesión activa aún
       tipo,
       scope,
       categoriaId,
@@ -48,7 +52,6 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
     });
 
     if (success) {
-      // Limpiar formulario tras éxito de registro rápido
       setMonto('');
       setDescripcion('');
       alert('¡Registro guardado con éxito! 🚀');
@@ -105,7 +108,7 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
         />
       </div>
 
-      {/* Selector de Categorías (Filtradas dinámicamente según scope si lo deseas) */}
+      {/* Selector de Categorías con blindaje ante arreglos vacíos o nulos */}
       <div>
         <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Categoría</label>
         <select
@@ -115,7 +118,7 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
           required
         >
           <option value="">Selecciona una categoría...</option>
-          {categorias
+          {categorias && categorias.length > 0 && categorias
             .filter(cat => scope === 'hogar' ? cat.tipo !== 'individual' : cat.tipo !== 'hogar')
             .map(cat => (
               <option key={cat.id} value={cat.id}>{cat.nombre}</option>
@@ -124,7 +127,7 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
         </select>
       </div>
 
-      {/* Selector de Cuenta/Método de Pago */}
+      {/* Selector de Cuenta con blindaje ante arreglos vacíos o nulos */}
       <div>
         <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿Con qué cuenta se pagó?</label>
         <select
@@ -134,7 +137,7 @@ export default function TransactionForm({ userId, onTransactionSuccess }) {
           required
         >
           <option value="">Selecciona la cuenta...</option>
-          {cuentas.map(ct => (
+          {cuentas && cuentas.length > 0 && cuentas.map(ct => (
             <option key={ct.id} value={ct.id}>{ct.nombre_cuenta}</option>
           ))}
         </select>
