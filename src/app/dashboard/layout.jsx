@@ -2,16 +2,19 @@ import Navbar from '@/components/Navbar';
 
 export default function DashboardLayout({ children }) {
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 antialiased">
-      {/* Menú de navegación adaptativo (Sidebar en PC, barra inferior en móvil) */}
-      <Navbar />
+    // 'flex min-h-screen' obliga a que el menú y el contenido se alineen horizontalmente
+    <div className="flex min-h-screen bg-gray-50">
+      
+      {/* Barra lateral estática a la izquierda */}
+      <div className="flex-shrink-0">
+        <Navbar />
+      </div>
 
-      {/* Contenedor principal donde se renderiza cada pestaña (hogar, eduin, majo, metas) */}
-      <main className="md:pl-64 min-h-screen pb-24 md:pb-8">
-        <div className="max-w-5xl mx-auto p-4 md:p-8">
-          {children}
-        </div>
+      {/* Contenido principal a la derecha que se adapta al resto de la pantalla */}
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        {children}
       </main>
+
     </div>
   );
 }
