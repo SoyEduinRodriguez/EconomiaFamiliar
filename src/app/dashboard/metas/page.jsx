@@ -116,7 +116,7 @@ export default function MetasPage() {
                     <div key={meta.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between space-y-4">
                       <div>
                         <div className="flex justify-between items-start">
-                          <h4 className="font-black text-gray-800 text-base">{meta.nombre}</h4>
+                          <h4 className="font-black text-gray-800 text-base">{meta.nombre_meta}</h4>
                           <span className="text-xs font-black px-2 py-1 bg-purple-50 text-purple-600 rounded-lg">
                             {pct}%
                           </span>
@@ -166,7 +166,7 @@ export default function MetasPage() {
                 {metasCumplidas.map((meta) => (
                   <div key={meta.id} className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-emerald-900 text-sm line-through decoration-emerald-300">{meta.nombre}</h4>
+                      <h4 className="font-bold text-emerald-900 text-sm line-through decoration-emerald-300">{meta.nombre_meta}</h4>
                       <p className="text-xs text-emerald-600 font-bold mt-0.5">
                         ¡Objetivo alcanzado! Total: ${parseFloat(meta.monto_objetivo).toLocaleString('es-CO')}
                       </p>
@@ -193,7 +193,7 @@ export default function MetasPage() {
             </div>
             <form onSubmit={handleAbonar} className="p-4 space-y-4">
               <p className="text-xs font-medium text-gray-600 text-center">
-                ¿Cuánto vas a guardar para <span className="font-bold text-gray-800">"{selectedMeta.nombre}"</span>?
+                ¿Cuánto vas a guardar para <span className="font-bold text-gray-800">"{selectedMeta.nombre_meta}"</span>?
               </p>
               <div className="relative">
                 <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
