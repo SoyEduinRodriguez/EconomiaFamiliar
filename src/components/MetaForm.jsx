@@ -22,19 +22,19 @@ export default function MetaForm({ isOpen, onClose, onActionSuccess }) {
     try {
       const { error: dbError } = await supabase
         .from('metas')
+        .select('*') // Primero asegurar la inserción limpia
         .insert([
           {
-            nombre_meta: nombre, // 👈 Cambiado 'nombre' por 'nombre_meta'
-            monto_objetivo: parseFloat(montoObjetivo),
+            nombre_meta: nombre,
+            monto_total: parseFloat(montoObjetivo),
+            monto_actual: 0.00, // Usamos tu columna nativa de acumulado
             fecha_limite: fechaLimite || null,
-            monto_alcanzado: 0,
-            estado: 'activa'
+            activa: true // Usamos tu booleano por defecto
           }
         ]);
 
       if (dbError) throw dbError;
 
-      // Limpiar y cerrar
       setNombre('');
       setMontoObjetivo('');
       setFechaLimite('');
