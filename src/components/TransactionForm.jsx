@@ -171,6 +171,7 @@ export default function TransactionForm({ isOpen, onClose, defaultScope, onActio
                   <option value="transporte">Transporte</option>
                   <option value="entretenimiento">Entretenimiento</option>
                   <option value="salud">Salud</option>
+                  <option value="renta">Renta</option>
                   <option value="otros">Otros Gastos</option>
                 </select>
               </div>
