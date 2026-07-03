@@ -14,10 +14,11 @@ export default function MajoDashboard() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
+      // Consulta inteligente para Majo
       const { data, error } = await supabase
         .from('transacciones')
         .select('*')
-        .eq('scope', 'majo')
+        .or('scope.eq.majo,and(scope.eq.hogar,pagado_por.eq.majo)')
         .order('fecha', { ascending: false });
 
       if (error) throw error;
@@ -41,7 +42,7 @@ export default function MajoDashboard() {
         balance: totalIngresos - totalGastos
       });
     } catch (err) {
-      console.error('Error:', err.message);
+      console.error('Error cargando billetera de Majo:', err.message);
     } finally {
       setLoading(false);
     }
