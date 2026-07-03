@@ -14,27 +14,28 @@ export default function MetaForm({ isOpen, onClose, onActionSuccess }) {
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
+      // Corregido: .insert() va pegado directamente a .from()
       const { error: dbError } = await supabase
         .from('metas')
-        .select('*') // Primero asegurar la inserción limpia
         .insert([
           {
             nombre_meta: nombre,
             monto_total: parseFloat(montoObjetivo),
-            monto_actual: 0.00, // Usamos tu columna nativa de acumulado
+            monto_actual: 0.00,
             fecha_limite: fechaLimite || null,
-            activa: true // Usamos tu booleano por defecto
+            activa: true
           }
         ]);
 
       if (dbError) throw dbError;
 
+      // Limpiar y cerrar modal
       setNombre('');
       setMontoObjetivo('');
       setFechaLimite('');
