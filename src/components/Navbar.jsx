@@ -1,74 +1,66 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Users, Target, PlusCircle } from 'lucide-react';
+import { User, Users, Target, LayoutDashboard } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
 
-const navItems = [
-  { name: 'Eduin', href: '/dashboard/eduin', icon: User, color: 'text-blue-500' },
-  { name: 'Majo', href: '/dashboard/majo', icon: User, color: 'text-pink-500' },
-  { name: 'Hogar', href: '/dashboard/hogar', icon: Users, color: 'text-emerald-500' },
-  { name: 'Metas', href: '/dashboard/metas', icon: Target, color: 'text-purple-500' },
-];
+  // Mapeo limpio de tus 4 secciones
+  const menuItems = [
+    { name: 'Eduin', href: '/dashboard/eduin', icon: User },
+    { name: 'Majo', href: '/dashboard/majo', icon: User },
+    { name: 'Hogar', href: '/dashboard/hogar', icon: Users },
+    { name: 'Metas', href: '/dashboard/metas', icon: Target },
+  ];
 
   return (
-    <>
-      {/* NAVEGACIÓN PARA ESCRITORIO (Sidebar Izquierdo) */}
-      <aside className="hidden md:flex flex-col w-64 bg-white h-screen fixed left-0 top-0 border-r border-gray-100 p-6 shadow-sm">
-        <div className="mb-8">
-          <h1 className="text-xl font-black text-gray-800 tracking-tight flex items-center gap-2">
-            📊 <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent">FinanzasHogar</span>
-          </h1>
-          <p className="text-xs text-gray-400 mt-1">Nuestra economía bajo control</p>
+    <aside className="w-64 bg-white border-r border-gray-100 min-h-screen p-4 flex flex-col justify-between">
+      <div className="space-y-6">
+        
+        {/* Logotipo */}
+        <div className="p-2">
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-6 h-6 text-emerald-500" />
+            <h1 className="text-xl font-black text-gray-800 tracking-tight">
+              Finanzas<span className="text-emerald-500">Hogar</span>
+            </h1>
+          </div>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+            Nuestra economía bajo control
+          </p>
         </div>
 
-        <nav className="space-y-2 flex-1">
-          {navItems.map((item) => {
+        {/* Enlaces con Link nativo de Next.js */}
+        <nav className="space-y-1">
+          {menuItems.map((item) => {
             const Icon = item.icon;
+            // Valida con precisión quirúrgica si estás parado en esta pestaña
             const isActive = pathname === item.href;
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all duration-200 ${
                   isActive
-                    ? 'bg-gray-900 text-white shadow-md shadow-gray-900/10'
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : item.color}`} />
+                <Icon className={`w-5 h-5 ${isActive ? 'text-emerald-400' : 'text-gray-400'}`} />
                 {item.name}
               </Link>
             );
           })}
         </nav>
-      </aside>
+      </div>
 
-      {/* NAVEGACIÓN PARA MÓVIL (Barra Inferior Flotante) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-100 px-4 pb-5 pt-2 flex justify-around items-center z-50 shadow-lg">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-col items-center gap-1 min-w-[60px] py-1 transition-all ${
-                isActive ? 'scale-110' : 'opacity-60'
-              }`}
-            >
-              <div className={`p-1.5 rounded-lg ${isActive ? 'bg-gray-100' : ''}`}>
-                <Icon className={`w-5 h-5 ${item.color}`} />
-              </div>
-              <span className={`text-[10px] font-bold ${isActive ? 'text-gray-900' : 'text-gray-400'}`}>
-                {item.name}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
-    </>
+      <div className="p-2 border-t border-gray-50 pt-4">
+        <p className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-widest">
+          v1.0.0 Stable
+        </p>
+      </div>
+    </aside>
   );
 }
