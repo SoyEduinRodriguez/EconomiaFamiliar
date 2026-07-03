@@ -1,251 +1,231 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { PlusCircle, Target, CheckCircle2, TrendingUp, RefreshCw, DollarSign, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useTransactions } from '@/hooks/useTransactions';
-import { Target, Plus, TrendingUp, Calendar, DollarSign, CheckCircle } from 'lucide-react';
+import MetaForm from '@/components/MetaForm';
 
 export default function MetasPage() {
-  const { createTransaction, loading: txLoading } = useTransactions();
-  
-  // Estados de datos
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [metas, setMetas] = useState([]);
-  const [cuentas, setCuentas] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Estados para los modales/formularios
-  const [showMetaModal, setShowMetaModal] = useState(false);
-  const [showAbonoModal, setShowAbonoModal] = useState(false);
+  
+  // Estados para el flujo de abono rápido
   const [selectedMeta, setSelectedMeta] = useState(null);
-
-  // Campos para nueva Meta
-  const [nombreMeta, setNombreMeta] = useState('');
-  const [montoTotal, setMontoTotal] = useState('');
-  const [fechaLimite, setFechaLimite] = useState('');
-
-  // Campos para nuevo Abono
   const [montoAbono, setMontoAbono] = useState('');
-  const [scopeAbono, setScopeAbono] = useState('eduin'); // Quién saca la plata
-  const [cuentaId, setCuentaId] = useState('');
+  const [abonando, setAbonando] = useState(false);
 
-  // Cargar metas y cuentas desde Supabase
-  async function cargarDatos() {
+  const fetchMetas = async () => {
     setLoading(true);
-    const { data: metasData } = await supabase.from('metas').select('*').eq('activa', true).order('created_at', { ascending: false });
-    const { data: cuentasData } = await supabase.from('cuentas_bancarias').select('*');
-    
-    if (metasData) setMetas(metasData);
-    if (cuentasData) setCuentas(cuentasData);
-    setLoading(false);
-  }
+    try {
+      const { data, error } = await supabase
+        .from('metas')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setMetas(data || []);
+    } catch (err) {
+      console.error('Error cargando metas:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    cargarDatos();
+    fetchMetas();
   }, []);
 
-  // Crear una nueva Meta/Propósito
-  const handleCreateMeta = async (e) => {
+  const handleAbonar = async (e) => {
     e.preventDefault();
-    if (!nombreMeta || !montoTotal) return;
+    if (!selectedMeta || !montoAbono) return;
+    setAbonando(true);
 
-    const { error } = await supabase.from('metas').insert([
-      {
-        nombre_meta: nombreMeta,
-        monto_total: parseFloat(montoTotal),
-        fecha_limite: fechaLimite || null
-      }
-    ]);
+    const nuevoAlcanzado = parseFloat(selectedMeta.monto_alcanzado) + parseFloat(montoAbono);
+    // Lógica dinámica: Si el nuevo monto iguala o supera el objetivo, pasa a cumplida
+    const nuevoEstado = nuevoAlcanzado >= parseFloat(selectedMeta.monto_objetivo) ? 'cumplida' : 'activa';
 
-    if (!error) {
-      setNombreMeta('');
-      setMontoTotal('');
-      setFechaLimite('');
-      setShowMetaModal(false);
-      cargarDatos();
-      alert('🎯 ¡Propósito creado con éxito! A cumplirlo.');
-    }
-  };
+    try {
+      const { error } = await supabase
+        .from('metas')
+        .update({ 
+          monto_alcanzado: nuevoAlcanzado,
+          estado: nuevoEstado
+        })
+        .eq('id', selectedMeta.id);
 
-  // Registrar un abono a una meta específica
-  const handleRegistrarAbono = async (e) => {
-    e.preventDefault();
-    if (!montoAbono || !cuentaId || !selectedMeta) return;
+      if (error) throw error;
 
-    // Buscamos el ID de la categoría especial 'Abono a Propósito'
-    const { data: catData } = await supabase.from('categorias').select('id').eq('nombre', 'Abono a Propósito').single();
-    
-    if (!catData) {
-      alert('Error: No se encontró la categoría "Abono a Propósito" en la base de datos.');
-      return;
-    }
-
-    // Registramos el abono como un gasto/egreso real que alimenta la meta (vía el Trigger de la base de datos)
-    const success = await createTransaction({
-      userId: '00000000-0000-0000-0000-000000000000', // Reemplazar en el futuro con la sesión real del usuario logueado
-      tipo: 'gasto',
-      scope: scopeAbono, // 'eduin' o 'majo'
-      categoriaId: catData.id,
-      cuentaId: cuentaId,
-      monto: montoAbono,
-      descripcion: `Abono al propósito: ${selectedMeta.nombre_meta}`,
-      metaId: selectedMeta.id
-    });
-
-    if (success) {
       setMontoAbono('');
-      setShowAbonoModal(false);
-      cargarDatos();
+      setSelectedMeta(null);
+      fetchMetas();
+    } catch (err) {
+      alert('Error al registrar el abono: ' + err.message);
+    } finally {
+      setAbonando(false);
     }
   };
+
+  // Filtrar metas localmente
+  const metasActivas = metas.filter(m => m.estado !== 'cumplida');
+  const metasCumplidas = metas.filter(m => m.estado === 'cumplida');
 
   return (
-    <div className="space-y-6">
-      {/* Encabezado */}
-      <div className="flex justify-between items-center">
+    <div className="p-4 max-w-5xl mx-auto space-y-6">
+      
+      {/* Cabecera */}
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-gray-800 flex items-center gap-2">
-            🎯 Nuestros Propósitos
-          </h1>
-          <p className="text-sm text-gray-500">Metas en pareja y sueños por cumplir.</p>
+          <h2 className="text-xl font-black text-gray-800">Propósitos y Metas</h2>
+          <p className="text-xs text-gray-400 font-medium">Sueños por cumplir y objetivos en pareja</p>
         </div>
-        <button
-          onClick={() => setShowMetaModal(true)}
-          className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-purple-600/10 transition-all"
-        >
-          <Plus className="w-4 h-4" /> Nueva Meta
-        </button>
+        <div className="flex gap-2">
+          <button onClick={fetchMetas} className="p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-xs shadow-sm hover:bg-purple-700 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Nueva Meta
+          </button>
+        </div>
       </div>
 
       {loading ? (
-        <p className="text-center text-sm text-gray-400">Cargando metas...</p>
-      ) : metas.length === 0 ? (
-        <div className="bg-white p-8 rounded-2xl text-center border border-gray-100 shadow-sm max-w-md mx-auto">
-          <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <h3 className="font-bold text-gray-700">No hay metas activas</h3>
-          <p className="text-xs text-gray-400 mt-1 mb-4">¿Qué tal si proponen su primer objetivo juntos hoy?</p>
-        </div>
+        <div className="text-center py-12 text-sm text-gray-400 font-medium">Cargando tus sueños...</div>
       ) : (
-        /* Cuadrícula de Metas */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {metas.map((meta) => {
-            const porcentaje = Math.min(Math.round((meta.monto_actual / meta.monto_total) * 100), 100);
-            return (
-              <div key={meta.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-black text-lg text-gray-800">{meta.nombre_meta}</h3>
-                    <span className="text-xs font-black bg-purple-50 text-purple-600 px-2.5 py-1 rounded-full">
-                      {porcentaje}%
-                    </span>
-                  </div>
-                  
-                  {meta.fecha_limite && (
-                    <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
-                      <Calendar className="w-3 h-3" /> Meta: {meta.fecha_limite}
-                    </p>
-                  )}
+        <div className="space-y-8">
+          
+          {/* SECCIÓN 1: METAS ACTIVAS */}
+          <div>
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <Target className="w-4 h-4 text-purple-500" />
+              Metas en Progreso ({metasActivas.length})
+            </h3>
 
-                  {/* Barra de Progreso */}
-                  <div className="w-full bg-gray-100 h-3 rounded-full mt-4 overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${porcentaje}%` }}
-                    />
-                  </div>
+            {metasActivas.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400 max-w-xl mx-auto shadow-xs">
+                No hay metas activas en este momento. ¡Propón tu primer objetivo juntos hoy!
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {metasActivas.map((meta) => {
+                  const pct = Math.min(Math.round((meta.monto_alcanzado * 100) / meta.monto_objetivo), 100);
+                  return (
+                    <div key={meta.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-black text-gray-800 text-base">{meta.nombre}</h4>
+                          <span className="text-xs font-black px-2 py-1 bg-purple-50 text-purple-600 rounded-lg">
+                            {pct}%
+                          </span>
+                        </div>
+                        {meta.fecha_limite && (
+                          <p className="text-xs text-gray-400 mt-1 font-medium">Meta para: {meta.fecha_limite}</p>
+                        )}
+                      </div>
 
-                  {/* Cifras */}
-                  <div className="flex justify-between items-center mt-3 text-sm">
+                      {/* Barra de progreso visual */}
+                      <div className="space-y-1">
+                        <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-purple-600 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs font-bold text-gray-400">
+                          <span>${parseFloat(meta.monto_alcanzado).toLocaleString('es-CO')}</span>
+                          <span>de ${parseFloat(meta.monto_objetivo).toLocaleString('es-CO')}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setSelectedMeta(meta)}
+                        className="w-full py-2 bg-gray-50 text-gray-700 hover:bg-purple-50 hover:text-purple-700 font-bold text-xs rounded-xl border border-gray-100 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        Abonar a la Meta
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SECCIÓN 2: METAS CUMPLIDAS */}
+          {metasCumplidas.length > 0 && (
+            <div className="pt-4 border-t border-gray-100">
+              <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" />
+                Metas Cumplidas 🎉 ({metasCumplidas.length})
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {metasCumplidas.map((meta) => (
+                  <div key={meta.id} className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] uppercase font-bold text-gray-400">Ahorrado</p>
-                      <p className="font-extrabold text-emerald-600">${parseFloat(meta.monto_actual).toLocaleString('es-CO')}</p>
+                      <h4 className="font-bold text-emerald-900 text-sm line-through decoration-emerald-300">{meta.nombre}</h4>
+                      <p className="text-xs text-emerald-600 font-bold mt-0.5">
+                        ¡Objetivo alcanzado! Total: ${parseFloat(meta.monto_objetivo).toLocaleString('es-CO')}
+                      </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] uppercase font-bold text-gray-400">Objetivo</p>
-                      <p className="font-extrabold text-gray-700">${parseFloat(meta.monto_total).toLocaleString('es-CO')}</p>
-                    </div>
+                    <CheckCircle2 className="w-6 h-6 text-emerald-500 flex-shrink-0" />
                   </div>
-                </div>
-
-                {/* Botón para Abonar */}
-                <button
-                  onClick={() => {
-                    setSelectedMeta(meta);
-                    setShowAbonoModal(true);
-                  }}
-                  className="w-full mt-2 py-2.5 bg-gray-50 hover:bg-purple-50 border border-gray-100 hover:border-purple-200 text-gray-700 hover:text-purple-700 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                >
-                  <TrendingUp className="w-4 h-4" /> Registrar Abono / Aporte
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* MODAL: NUEVA META */}
-      {showMetaModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <form onSubmit={handleCreateMeta} className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md space-y-4 relative">
-            <button type="button" onClick={() => setShowMetaModal(false)} className="absolute top-4 right-4 text-gray-400">✕</button>
-            <h2 className="text-lg font-black text-gray-800">🎯 Proponer Nuevo Propósito</h2>
-            
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿Qué queremos lograr?</label>
-              <input type="text" placeholder="Ej: Televisor para la sala, Viaje de aniversario" value={nombreMeta} onChange={(e) => setNombreMeta(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-xl" required />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Monto Total Necesario ($)</label>
-              <input type="number" placeholder="Ej: 1000000" value={montoTotal} onChange={(e) => setMontoTotal(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-xl" required />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Fecha Límite (Opcional)</label>
-              <input type="date" value={fechaLimite} onChange={(e) => setFechaLimite(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-xl" />
-            </div>
-
-            <button type="submit" className="w-full py-3 bg-purple-600 text-white font-bold rounded-xl shadow-md">Crear Meta Común</button>
-          </form>
-        </div>
-      )}
-
-      {/* MODAL: REGISTRAR ABONO */}
-      {showAbonoModal && selectedMeta && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <form onSubmit={handleRegistrarAbono} className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-md space-y-4 relative">
-            <button type="button" onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 text-gray-400">✕</button>
-            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2">💰 Abonar a {selectedMeta.nombre_meta}</h2>
-            
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿Cuánto vas a aportar?</label>
-              <input type="number" placeholder="Ej: 50000" value={montoAbono} onChange={(e) => setMontoAbono(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-xl" required />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿Quién pone el dinero?</label>
-              <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                <button type="button" onClick={() => setScopeAbono('eduin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${scopeAbono === 'eduin' ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-600'}`}>🙋‍♂️ Eduin</button>
-                <button type="button" onClick={() => setScopeAbono('majo')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${scopeAbono === 'majo' ? 'bg-pink-500 text-white shadow-sm' : 'text-gray-600'}`}>🙋‍♀️ Majo</button>
+                ))}
               </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿De qué cuenta sale el aporte?</label>
-              <select value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} className="w-full p-3 bg-gray-50 border rounded-xl" required>
-                <option value="">Selecciona la cuenta...</option>
-                {cuentas
-                  .map(ct => (
-                    <option key={ct.id} value={ct.id}>{ct.nombre_cuenta}</option>
-                  ))
-                }
-              </select>
-            </div>
-
-            <button type="submit" disabled={txLoading} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-md disabled:opacity-50">
-              {txLoading ? 'Procesando...' : '🚀 Confirmar Aporte'}
-            </button>
-          </form>
         </div>
       )}
+
+      {/* MODAL CORTINA PARA ABONAR DINERO */}
+      {selectedMeta && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl w-full max-w-xs overflow-hidden shadow-xl border border-gray-100 animate-scaleUp">
+            <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+              <span className="text-xs font-black text-gray-500 uppercase">Abonar saldo</span>
+              <button onClick={() => setSelectedMeta(null)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAbonar} className="p-4 space-y-4">
+              <p className="text-xs font-medium text-gray-600 text-center">
+                ¿Cuánto vas a guardar para <span className="font-bold text-gray-800">"{selectedMeta.nombre}"</span>?
+              </p>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
+                <input
+                  type="number"
+                  required
+                  autoFocus
+                  placeholder="0"
+                  value={montoAbono}
+                  onChange={(e) => setMontoAbono(e.target.value)}
+                  className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={abonando}
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all"
+              >
+                {abonando ? 'Guardando...' : 'Confirmar Abono'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Formulario de creación */}
+      <MetaForm 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onActionSuccess={fetchMetas}
+      />
+
     </div>
   );
 }
