@@ -1,4 +1,4 @@
-import '../styles/globals.css';
+import '@/styles/globals.css'; // <-- Cambiado al alias global exacto
 
 export const metadata = {
   title: 'Economía Familiar',
@@ -8,7 +8,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased bg-gray-50 text-gray-900">{children}</body>
     </html>
   );
 }
