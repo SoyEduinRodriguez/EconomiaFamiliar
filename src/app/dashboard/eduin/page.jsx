@@ -14,10 +14,11 @@ export default function EduinDashboard() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
+      // Consulta inteligente: Filtra si el scope es 'eduin' O si es del 'hogar' pero pagado por 'eduin'
       const { data, error } = await supabase
         .from('transacciones')
         .select('*')
-        .eq('scope', 'eduin')
+        .or('scope.eq.eduin,and(scope.eq.hogar,pagado_por.eq.eduin)')
         .order('fecha', { ascending: false });
 
       if (error) throw error;
@@ -41,7 +42,7 @@ export default function EduinDashboard() {
         balance: totalIngresos - totalGastos
       });
     } catch (err) {
-      console.error('Error:', err.message);
+      console.error('Error cargando billetera de Eduin:', err.message);
     } finally {
       setLoading(false);
     }
