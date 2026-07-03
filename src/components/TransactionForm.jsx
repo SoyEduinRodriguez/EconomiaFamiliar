@@ -1,170 +1,231 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useTransactions } from '@/hooks/useTransactions';
-import { supabase } from '@/lib/supabase';
+import { useState } from 'react';
+import { X, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase'; // Asegúrate de que esta ruta sea la de tu cliente de Supabase
 
-export default function TransactionForm({ userId, onTransactionSuccess }) {
-  const { createTransaction, loading, error: txError } = useTransactions();
-  
-  // Estados para cargar selectores desde Supabase
-  const [categorias, setCategorias] = useState([]);
-  const [cuentas, setCuentas] = useState([]);
+export default function TransactionForm({ isOpen, onClose, defaultScope, onActionSuccess }) {
+  const [activeTab, setActiveTab] = useState('gasto'); // 'gasto' o 'ingreso'
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Estados del formulario
-  const [tipo, setTipo] = useState('gasto'); // 'gasto' o 'ingreso'
-  const [scope, setScope] = useState('hogar'); // 'eduin', 'majo' o 'hogar'
+  // Estados del Formulario
   const [monto, setMonto] = useState('');
-  const [categoriaId, setCategoriaId] = useState('');
-  const [cuentaId, setCuentaId] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [scope, setScope] = useState(defaultScope || 'hogar');
+  const [categoria, setCategoria] = useState('');
+  const [motivoIngreso, setMotivoIngreso] = useState('');
+  const [cuentaInvolucrada, setCuentaInvolucrada] = useState('');
 
-  // Cargar categorías y cuentas al montar el componente
-  useEffect(() => {
-    async function loadFormOptions() {
-      try {
-        const { data: catData } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
-        const { data: cuentaData } = await supabase.from('cuentas_bancarias').select('*');
-        
-        if (catData) setCategorias(catData);
-        if (cuentaData) setCuentas(cuentaData);
-      } catch (err) {
-        console.error("Error cargando opciones del formulario:", err);
-      }
-    }
-    loadFormOptions();
-  }, []);
+  if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!monto || !categoriaId || !cuentaId) {
-      alert('Por favor completa los campos obligatorios: Monto, Categoría y Cuenta.');
-      return;
-    }
+    setLoading(true);
+    setError(null);
 
-    const success = await createTransaction({
-      userId: userId || '00000000-0000-0000-0000-000000000000', // ID temporal si no hay sesión activa aún
-      tipo,
+    // Estructurar los datos según el tipo de movimiento
+    const dataToSubmit = {
+      monto: parseFloat(monto),
+      descripcion,
       scope,
-      categoriaId,
-      cuentaId,
-      monto,
-      descripcion
-    });
+      tipo_transaccion: activeTab,
+      fecha: new Date().toISOString().split('T')[0], // Fecha de hoy YYYY-MM-DD
+      // Campos específicos
+      categoria: activeTab === 'gasto' ? categoria : null,
+      cuenta_pago: activeTab === 'gasto' ? cuentaInvolucrada : null,
+      motivo_ingreso: activeTab === 'ingreso' ? motivoIngreso : null,
+    };
 
-    if (success) {
+    try {
+      const { error: dbError } = await supabase
+        .from('transacciones') // Reemplaza por el nombre exacto de tu tabla en Supabase
+        .insert([dataToSubmit]);
+
+      if (dbError) throw dbError;
+
+      // Resetear formulario y cerrar
       setMonto('');
       setDescripcion('');
-      alert('¡Registro guardado con éxito! 🚀');
-      if (onTransactionSuccess) onTransactionSuccess();
+      setCategoria('');
+      setMotivoIngreso('');
+      setCuentaInvolucrada('');
+      
+      if (onActionSuccess) onActionSuccess();
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Error al registrar el movimiento');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 bg-white rounded-2xl shadow-md max-w-md mx-auto space-y-4">
-      <h2 className="text-xl font-bold text-gray-800 text-center">Registrar Movimiento</h2>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-100">
+        
+        {/* Cabecera del Modal */}
+        <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+          <h3 className="font-bold text-gray-800 text-lg">Registrar Movimiento</h3>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-      {/* Selector Rápido Tipo Transacción */}
-      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-        <button
-          type="button"
-          onClick={() => setTipo('gasto')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-600'}`}
-        >
-          💸 Gasto
-        </button>
-        <button
-          type="button"
-          onClick={() => setTipo('ingreso')}
-          className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600'}`}
-        >
-          💰 Ingreso
-        </button>
+        {/* Selector de Tipo (Tabs Personalizados) */}
+        <div className="p-3 bg-gray-100 flex gap-2 m-4 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setActiveTab('gasto')}
+            className={`flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'gasto'
+                ? 'bg-gray-800 text-white shadow-xs'
+                : 'text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <ArrowDownRight className="w-4 h-4 text-red-400" />
+            Registrar Gasto
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('ingreso')}
+            className={`flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'ingreso'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-gray-500 hover:text-emerald-600'
+            }`}
+          >
+            <ArrowUpRight className="w-4 h-4 text-emerald-300" />
+            Registrar Ingreso
+          </button>
+        </div>
+
+        {/* Cuerpo del Formulario */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 text-red-600 text-xs font-semibold rounded-xl border border-red-100">
+              {error}
+            </div>
+          )}
+
+          {/* Campo Monto Dinámico según Tipo */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Monto ($)</label>
+            <div className="relative">
+              <span className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold ${activeTab === 'ingreso' ? 'text-emerald-500' : 'text-gray-400'}`}>
+                $
+              </span>
+              <input
+                type="number"
+                required
+                placeholder="0"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                className={`w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl font-semibold text-lg focus:outline-none focus:ring-2 ${
+                  activeTab === 'ingreso' ? 'focus:ring-emerald-500 focus:border-emerald-500 text-emerald-700' : 'focus:ring-gray-800 focus:border-gray-800 text-gray-800'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Descripción */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Descripción</label>
+            <input
+              type="text"
+              required
+              placeholder={activeTab === 'gasto' ? "Ej. Compras del Éxito" : "Ej. Pago de nómina"}
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-gray-800"
+            />
+          </div>
+
+          {/* Ámbito / Scope */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Ámbito (Scope)</label>
+            <select
+              value={scope}
+              onChange={(e) => setScope(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-800"
+            >
+              <option value="hogar">Hogar / Gastos Comunes</option>
+              <option value="eduin">Eduin (Personal)</option>
+              <option value="majo">Majo (Personal)</option>
+            </select>
+          </div>
+
+          {/* FORMULARIO CONDICIONAL: GASTO */}
+          {activeTab === 'gasto' && (
+            <div className="grid grid-cols-2 gap-3 animate-slideDown">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Categoría</label>
+                <select
+                  required
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-xs font-medium focus:outline-none"
+                >
+                  <option value="">Selecciona...</option>
+                  <option value="mercado">Mercado</option>
+                  <option value="servicios">Servicios</option>
+                  <option value="transporte">Transporte</option>
+                  <option value="entretenimiento">Entretenimiento</option>
+                  <option value="salud">Salud</option>
+                  <option value="otros">Otros Gastos</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">¿Con qué se pagó?</label>
+                <select
+                  required
+                  value={cuentaInvolucrada}
+                  onChange={(e) => setCuentaInvolucrada(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 bg-white rounded-xl text-xs font-medium focus:outline-none"
+                >
+                  <option value="">Selecciona...</option>
+                  <option value="nequi">Nequi</option>
+                  <option value="bancolombia">Bancolombia</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="tarjeta">Tarjeta de Crédito</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* FORMULARIO CONDICIONAL: INGRESO */}
+          {activeTab === 'ingreso' && (
+            <div className="animate-slideDown">
+              <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Motivo del Ingreso</label>
+              <select
+                required
+                value={motivoIngreso}
+                onChange={(e) => setMotivoIngreso(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 bg-white rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">Selecciona el tipo de ingreso...</option>
+                <option value="salario">Salario Base</option>
+                <option value="extras">Horas Extras / Bonos</option>
+                <option value="independiente">Trabajo Independiente</option>
+                <option value="transferencia">Transferencia Familiar</option>
+                <option value="otros">Otros Ingresos</option>
+              </select>
+            </div>
+          )}
+
+          {/* Botón de Envío */}
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all mt-2 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            } ${
+              activeTab === 'ingreso' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-800 hover:bg-gray-900'
+            }`}
+          >
+            {loading ? 'Guardando...' : activeTab === 'ingreso' ? 'Guardar Ingreso' : 'Guardar Gasto'}
+          </button>
+        </form>
       </div>
-
-      {/* Selector de Propietario / Scope */}
-      <div>
-        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿De quién o para quién es?</label>
-        <select 
-          value={scope} 
-          onChange={(e) => setScope(e.target.value)}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="hogar">🏡 Hogar (Compartido)</option>
-          <option value="eduin">🙋‍♂️ Eduin</option>
-          <option value="majo">🙋‍♀️ Majo</option>
-        </select>
-      </div>
-
-      {/* Campo de Monto */}
-      <div>
-        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Valor ($)</label>
-        <input
-          type="number"
-          placeholder="Ej: 50000"
-          value={monto}
-          onChange={(e) => setMonto(e.target.value)}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
-      </div>
-
-      {/* Selector de Categorías con blindaje ante arreglos vacíos o nulos */}
-      <div>
-        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Categoría</label>
-        <select
-          value={categoriaId}
-          onChange={(e) => setCategoriaId(e.target.value)}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        >
-          <option value="">Selecciona una categoría...</option>
-          {categorias && categorias.length > 0 && categorias
-            .filter(cat => scope === 'hogar' ? cat.tipo !== 'individual' : cat.tipo !== 'hogar')
-            .map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.nombre}</option>
-            ))
-          }
-        </select>
-      </div>
-
-      {/* Selector de Cuenta con blindaje ante arreglos vacíos o nulos */}
-      <div>
-        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">¿Con qué cuenta se pagó?</label>
-        <select
-          value={cuentaId}
-          onChange={(e) => setCuentaId(e.target.value)}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        >
-          <option value="">Selecciona la cuenta...</option>
-          {cuentas && cuentas.length > 0 && cuentas.map(ct => (
-            <option key={ct.id} value={ct.id}>{ct.nombre_cuenta}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Descripción Breve */}
-      <div>
-        <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Detalle (Opcional)</label>
-        <input
-          type="text"
-          placeholder="Ej: Compras del mes, cena familiar"
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      {txError && <p className="text-red-500 text-xs text-center">{txError}</p>}
-
-      {/* Botón Guardar */}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-md disabled:opacity-50"
-      >
-        {loading ? 'Guardando...' : '💾 Guardar Transacción'}
-      </button>
-    </form>
+    </div>
   );
 }
