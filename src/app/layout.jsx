@@ -1,4 +1,4 @@
-import '../styles/globals.css'; // <-- Cambiado a ruta relativa directa
+import '../styles/globals.css';
 
 export const metadata = {
   title: 'Economía Familiar',
