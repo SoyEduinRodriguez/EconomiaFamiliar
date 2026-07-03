@@ -24,7 +24,7 @@ export default function MetaForm({ isOpen, onClose, onActionSuccess }) {
         .from('metas')
         .insert([
           {
-            nombre,
+            nombre_meta: nombre, // 👈 Cambiado 'nombre' por 'nombre_meta'
             monto_objetivo: parseFloat(montoObjetivo),
             fecha_limite: fechaLimite || null,
             monto_alcanzado: 0,
