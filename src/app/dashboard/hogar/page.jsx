@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { PlusCircle, Wallet, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
+import { PlusCircle, Home, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import TransactionForm from '@/components/TransactionForm';
 import TransactionTable from '@/components/TransactionTable';
@@ -14,21 +14,22 @@ export default function HogarDashboard() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
-      // Consultar transacciones de la casa
+      // Filtra estrictamente lo que pertenezca al scope 'hogar'
       const { data, error } = await supabase
         .from('transacciones')
         .select('*')
         .eq('scope', 'hogar')
-        .order('fecha', { ascending: false });
+        .order('fecha_transaccion', { ascending: false });
 
       if (error) throw error;
       setTransacciones(data || []);
 
-      // Calcular métricas localmente en frío
       let totalIngresos = 0;
       let totalGastos = 0;
       
       (data || []).forEach(tx => {
+        if (tx.estado === 'anulado') return; // 🚫 Salta los anulados del hogar
+
         const monto = parseFloat(tx.monto) || 0;
         if (tx.tipo_transaccion === 'ingreso') {
           totalIngresos += monto;
@@ -43,7 +44,7 @@ export default function HogarDashboard() {
         balance: totalIngresos - totalGastos
       });
     } catch (err) {
-      console.error('Error cargando datos de hogar:', err.message);
+      console.error('Error cargando cuentas del Hogar:', err.message);
     } finally {
       setLoading(false);
     }
@@ -55,11 +56,10 @@ export default function HogarDashboard() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto space-y-6">
-      {/* Cabecera Dinámica */}
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
         <div>
-          <h2 className="text-xl font-black text-gray-800">Finanzas del Hogar</h2>
-          <p className="text-xs text-gray-400 font-medium">Control de gastos e ingresos comunes</p>
+          <h2 className="text-xl font-black text-gray-800">Cuentas del Hogar</h2>
+          <p className="text-xs text-gray-400 font-medium">Gastos comunes y mantenimiento de la casa</p>
         </div>
         <div className="flex gap-2">
           <button onClick={fetchDatos} className="p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">
@@ -67,20 +67,19 @@ export default function HogarDashboard() {
           </button>
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl font-bold text-xs shadow-sm hover:bg-gray-900 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-sm hover:bg-emerald-700 transition-all"
           >
             <PlusCircle className="w-4 h-4" />
-            Registrar Movimiento
+            Registrar Gasto Hogar
           </button>
         </div>
       </div>
 
-      {/* Tarjetas de Balance */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs font-bold text-gray-400 uppercase">Fondo Común</span>
-            <Wallet className="w-4 h-4 text-gray-400" />
+            <Home className="w-4 h-4 text-gray-400" />
           </div>
           <p className={`text-lg font-black ${metricas.balance >= 0 ? 'text-gray-800' : 'text-red-600'}`}>
             ${metricas.balance.toLocaleString('es-CO')}
@@ -88,28 +87,26 @@ export default function HogarDashboard() {
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase">Ingresos</span>
+            <span className="text-xs font-bold text-gray-400 uppercase">Aportes Recibidos</span>
             <ArrowUpRight className="w-4 h-4 text-emerald-500" />
           </div>
           <p className="text-lg font-black text-emerald-600">${metricas.ingresos.toLocaleString('es-CO')}</p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase">Gastos</span>
+            <span className="text-xs font-bold text-gray-400 uppercase">Gastos Totales</span>
             <ArrowDownRight className="w-4 h-4 text-gray-400" />
           </div>
           <p className="text-lg font-black text-gray-700">${metricas.gastos.toLocaleString('es-CO')}</p>
         </div>
       </div>
 
-      {/* Tabla de Historial */}
       {loading ? (
-        <div className="text-center py-10 text-sm text-gray-400 font-medium">Cargando flujos financieros...</div>
+        <div className="text-center py-10 text-sm text-gray-400 font-medium">Cargando cuentas comunes...</div>
       ) : (
         <TransactionTable transacciones={transacciones} onActionSuccess={fetchDatos} />
       )}
 
-      {/* Modal Unificado */}
       <TransactionForm 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
