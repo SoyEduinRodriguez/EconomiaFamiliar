@@ -14,12 +14,12 @@ export default function MajoDashboard() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
-      // Consulta inteligente para Majo
+      // Consulta inteligente para Majo ordenada por tu columna nativa
       const { data, error } = await supabase
         .from('transacciones')
         .select('*')
         .or('scope.eq.majo,and(scope.eq.hogar,pagado_por.eq.majo)')
-        .order('fecha', { ascending: false });
+        .order('fecha_transaccion', { ascending: false });
 
       if (error) throw error;
       setTransacciones(data || []);
@@ -28,6 +28,8 @@ export default function MajoDashboard() {
       let totalGastos = 0;
       
       (data || []).forEach(tx => {
+        if (tx.estado === 'anulado') return; // 🚫 Salta los anulados
+
         const monto = parseFloat(tx.monto) || 0;
         if (tx.tipo_transaccion === 'ingreso') {
           totalIngresos += monto;
@@ -56,7 +58,7 @@ export default function MajoDashboard() {
     <div className="p-4 max-w-5xl mx-auto space-y-6">
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
         <div>
-          <h2 className="text-xl font-black text-purple-800">Billetera de Majo</h2>
+          <h2 className="text-xl font-black text-gray-800">Billetera de Majo</h2>
           <p className="text-xs text-gray-400 font-medium">Finanzas y movimientos personales</p>
         </div>
         <div className="flex gap-2">
@@ -65,7 +67,7 @@ export default function MajoDashboard() {
           </button>
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-xs shadow-sm hover:bg-purple-700 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-800 text-white rounded-xl font-bold text-xs shadow-sm hover:bg-gray-900 transition-all"
           >
             <PlusCircle className="w-4 h-4" />
             Registrar Movimiento
