@@ -14,12 +14,12 @@ export default function EduinDashboard() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
-      // Consulta inteligente: Filtra si el scope es 'eduin' O si es del 'hogar' pero pagado por 'eduin'
+      // Consulta inteligente: Filtra scope y corrige ordenamiento usando tu columna nativa 'fecha_transaccion'
       const { data, error } = await supabase
         .from('transacciones')
         .select('*')
         .or('scope.eq.eduin,and(scope.eq.hogar,pagado_por.eq.eduin)')
-        .order('fecha', { ascending: false });
+        .order('fecha_transaccion', { ascending: false }); // 👈 Corregido de 'fecha' a 'fecha_transaccion'
 
       if (error) throw error;
       setTransacciones(data || []);
@@ -28,6 +28,9 @@ export default function EduinDashboard() {
       let totalGastos = 0;
       
       (data || []).forEach(tx => {
+        // 🚫 LA LÍNEA CLAVE: Si el movimiento está anulado, saltarlo y no sumarlo a las tarjetas de arriba
+        if (tx.estado === 'anulado') return; 
+
         const monto = parseFloat(tx.monto) || 0;
         if (tx.tipo_transaccion === 'ingreso') {
           totalIngresos += monto;
