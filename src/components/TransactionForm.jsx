@@ -177,6 +177,7 @@ export default function TransactionForm({ isOpen, onClose, defaultScope, onActio
                   >
                     <option value="">Selecciona...</option>
                     <option value="mercado">Mercado</option>
+                    <option value="universidad">Universidad</option>
                     <option value="servicios">Servicios</option>
                     <option value="renta">Renta</option>
                     <option value="transporte">Transporte</option>
@@ -196,6 +197,7 @@ export default function TransactionForm({ isOpen, onClose, defaultScope, onActio
                     <option value="">Selecciona...</option>
                     <option value="nequi">Nequi</option>
                     <option value="bancolombia">Bancolombia</option>
+                    <option value="davivienda">Davivienda</option>
                     <option value="efectivo">Efectivo</option>
                     <option value="tarjeta">Tarjeta de Crédito</option>
                   </select>
