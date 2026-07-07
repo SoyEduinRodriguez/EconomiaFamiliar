@@ -1,14 +1,20 @@
 'use client';
 import { useState } from 'react';
-import { AlertCircle, Trash2, Ban, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Trash2, Ban, CheckCircle2, Pencil, X, DollarSign } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function TransactionTable({ transacciones, onActionSuccess }) {
   const [loadingId, setLoadingId] = useState(null);
+  
+  // Estados para el flujo de EDICIÓN
+  const [editingTx, setEditingTx] = useState(null);
+  const [nuevaDescripcion, setNuevaDescripcion] = useState('');
+  const [nuevoMonto, setNuevoMonto] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
-  // 🚫 Función para ANULAR lógicamente la transacción
+  // 🚫 Función para ANULAR
   const handleAnular = async (id, estadoActual) => {
-    if (!window.confirm('¿Estás seguro de que deseas anular este movimiento? Ya no sumará a los balances.')) return;
+    if (!window.confirm('¿Estás seguro de que deseas cambiar el estado de este movimiento?')) return;
     setLoadingId(id);
     try {
       const nuevoEstado = estadoActual === 'anulado' ? 'activo' : 'anulado';
@@ -20,15 +26,15 @@ export default function TransactionTable({ transacciones, onActionSuccess }) {
       if (error) throw error;
       if (onActionSuccess) onActionSuccess();
     } catch (err) {
-      alert('Error al actualizar el estado: ' + err.message);
+      alert('Error: ' + err.message);
     } finally {
       setLoadingId(null);
     }
   };
 
-  // 🗑️ Función para ELIMINAR físicamente de la base de datos
+  // 🗑️ Función para ELIMINAR
   const handleEliminar = async (id) => {
-    if (!window.confirm('🚨 ¡ALERTA! Esto eliminará permanentemente el registro de la base de datos. ¿Continuar?')) return;
+    if (!window.confirm('🚨 ¡ALERTA! Esto eliminará permanentemente el registro. ¿Continuar?')) return;
     setLoadingId(id);
     try {
       const { error } = await supabase
@@ -39,9 +45,42 @@ export default function TransactionTable({ transacciones, onActionSuccess }) {
       if (error) throw error;
       if (onActionSuccess) onActionSuccess();
     } catch (err) {
-      alert('Error al eliminar la transacción: ' + err.message);
+      alert('Error al eliminar: ' + err.message);
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  // ✏️ Abrir el modal de edición precargando los datos
+  const iniciarEdicion = (tx) => {
+    setEditingTx(tx);
+    setNuevaDescripcion(tx.descripcion || '');
+    setNuevoMonto(tx.monto);
+  };
+
+  // 💾 Guardar los datos modificados en Supabase
+  const handleGuardarEdicion = async (e) => {
+    e.preventDefault();
+    if (!editingTx || !nuevoMonto) return;
+    setGuardandoEdicion(true);
+
+    try {
+      const { error } = await supabase
+        .from('transacciones')
+        .update({
+          descripcion: nuevaDescripcion,
+          monto: parseFloat(nuevoMonto)
+        })
+        .eq('id', editingTx.id);
+
+      if (error) throw error;
+
+      setEditingTx(null);
+      if (onActionSuccess) onActionSuccess();
+    } catch (err) {
+      alert('Error al actualizar los datos: ' + err.message);
+    } finally {
+      setGuardandoEdicion(false);
     }
   };
 
@@ -72,7 +111,6 @@ export default function TransactionTable({ transacciones, onActionSuccess }) {
                 isAnulado ? 'opacity-40 bg-gray-50/50 px-2 rounded-xl' : ''
               }`}
             >
-              {/* Información del movimiento */}
               <div className="space-y-0.5">
                 <p className={`font-semibold text-gray-800 ${isAnulado ? 'line-through text-gray-400' : ''}`}>
                   {tx.descripcion || 'Sin detalle'}
@@ -89,8 +127,7 @@ export default function TransactionTable({ transacciones, onActionSuccess }) {
                 </div>
               </div>
 
-              {/* Monto y Botones de Acción */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <span className={`font-bold whitespace-nowrap ${
                   isAnulado 
                     ? 'text-gray-400 line-through font-medium' 
@@ -101,35 +138,97 @@ export default function TransactionTable({ transacciones, onActionSuccess }) {
                   {tx.tipo_transaccion === 'ingreso' ? '+' : '-'} ${parseFloat(tx.monto).toLocaleString('es-CO')}
                 </span>
 
-                {/* Bloque de botones discretos */}
-                <div className="flex items-center gap-1 text-gray-400">
+                {/* BOTONES DE ACCIÓN */}
+                <div className="flex items-center gap-0.5 text-gray-400">
+                  {/* Botón de Editar */}
+                  {!isAnulado && (
+                    <button
+                      disabled={loadingId === tx.id}
+                      onClick={() => iniciarEdicion(tx)}
+                      title="Modificar valor o descripción"
+                      className="p-1.5 rounded-lg hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  
+                  {/* Botón de Anular */}
                   <button
                     disabled={loadingId === tx.id}
                     onClick={() => handleAnular(tx.id, tx.estado)}
-                    title={isAnulado ? "Reactivar Transacción" : "Anular Transacción"}
+                    title={isAnulado ? "Reactivar" : "Anular"}
                     className={`p-1.5 rounded-lg transition-colors ${
-                      isAnulado 
-                        ? 'hover:bg-emerald-50 hover:text-emerald-600 text-gray-300' 
-                        : 'hover:bg-amber-50 hover:text-amber-600'
+                      isAnulado ? 'hover:bg-emerald-50 hover:text-emerald-600 text-gray-300' : 'hover:bg-amber-50 hover:text-amber-600'
                     }`}
                   >
-                    {isAnulado ? <CheckCircle2 className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                    {isAnulado ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
                   </button>
+
+                  {/* Botón de Eliminar */}
                   <button
                     disabled={loadingId === tx.id}
                     onClick={() => handleEliminar(tx.id)}
-                    title="Eliminar permanentemente"
+                    title="Eliminar para siempre"
                     className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-
             </div>
           );
         })}
       </div>
+
+      {/* MODAL / CORTINA FLOTANTE PARA EDITAR VALOR O DESCRIPCIÓN */}
+      {editingTx && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl w-full max-w-xs overflow-hidden shadow-xl border border-gray-100 animate-scaleUp">
+            <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+              <span className="text-xs font-black text-gray-500 uppercase">Modificar Movimiento</span>
+              <button onClick={() => setEditingTx(null)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleGuardarEdicion} className="p-4 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Descripción</label>
+                <input
+                  type="text"
+                  required
+                  value={nuevaDescripcion}
+                  onChange={(e) => setNuevaDescripcion(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Valor / Monto ($)</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
+                  <input
+                    type="number"
+                    required
+                    value={nuevoMonto}
+                    onChange={(e) => setNuevoMonto(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={guardandoEdicion}
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all"
+              >
+                {guardandoEdicion ? 'Actualizando...' : 'Guardar Cambios'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
