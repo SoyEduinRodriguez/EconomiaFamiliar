@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { PlusCircle, Users, Scale, ArrowUpRight, ArrowDownRight, RefreshCw, Calendar } from 'lucide-react';
+import { PlusCircle, Users, Wallet, ArrowUpRight, RefreshCw, Calendar, PieChart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import TransactionForm from '@/components/TransactionForm';
 import TransactionTable from '@/components/TransactionTable';
@@ -41,7 +41,7 @@ export default function HogarDashboard() {
     return transacciones.filter(tx => tx.fecha_transaccion?.startsWith(selectedPeriod) && tx.estado !== 'anulado');
   }, [transacciones, selectedPeriod]);
 
-  // ANÁLISIS DE GASTOS COMPARTIDOS Y BALANCE DE PAREJA
+  // ANÁLISIS DE COSTO DE VIDA Y APORTES REALES
   const metrics = useMemo(() => {
     let totalGastos = 0;
     let pusoEduin = 0;
@@ -53,7 +53,7 @@ export default function HogarDashboard() {
         const monto = parseFloat(tx.monto) || 0;
         totalGastos += monto;
 
-        // Quién sacó la plata de su bolsillo
+        // Quién asumió el gasto físicamente
         if (tx.pagado_por === 'eduin') pusoEduin += monto;
         if (tx.pagado_por === 'majo') pusoMajo += monto;
 
@@ -62,19 +62,9 @@ export default function HogarDashboard() {
       }
     });
 
-    // Ajuste de cuentas (50/50)
-    const cuotaEquitativa = totalGastos / 2;
-    let balanceMensaje = 'Están a paz y salvo';
-    let saldoDiferencia = 0;
-    let deudor = '';
-
-    if (pusoEduin > pusoMajo) {
-      saldoDiferencia = cuotaEquitativa - pusoMajo;
-      balanceMensaje = `⚠️ Majo le debe a Eduin: $${Math.round(saldoDiferencia).toLocaleString('es-CO')}`;
-    } else if (pusoMajo > pusoEduin) {
-      saldoDiferencia = cuotaEquitativa - pusoEduin;
-      balanceMensaje = `⚠️ Eduin le debe a Majo: $${Math.round(saldoDiferencia).toLocaleString('es-CO')}`;
-    }
+    // Calcular porcentajes de aporte real al hogar
+    const pctEduin = totalGastos > 0 ? (pusoEduin / totalGastos) * 100 : 0;
+    const pctMajo = totalGastos > 0 ? (pusoMajo / totalGastos) * 100 : 0;
 
     const distribucion = Object.entries(categorias).map(([name, value]) => ({
       name,
@@ -82,7 +72,7 @@ export default function HogarDashboard() {
       porcentaje: totalGastos > 0 ? (value / totalGastos) * 100 : 0
     })).sort((a, b) => b.value - a.value);
 
-    return { totalGastos, pusoEduin, pusoMajo, balanceMensaje, distribucion };
+    return { totalGastos, pusoEduin, pusoMajo, pctEduin, pctMajo, distribucion };
   }, [filteredTransactions]);
 
   return (
@@ -90,8 +80,8 @@ export default function HogarDashboard() {
       {/* CABECERA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">🏡 Cuentas del Hogar</h1>
-          <p className="text-xs text-gray-500">Gastos unificados e igualación de saldos</p>
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">🏡 Costo de Vida del Hogar</h1>
+          <p className="text-xs text-gray-500">¿Cuánto cuesta mantener la casa y quién asume los pagos?</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <div className="flex items-center gap-1 bg-gray-50 px-3 py-2 rounded-xl border border-gray-200 text-sm">
@@ -104,45 +94,72 @@ export default function HogarDashboard() {
           </div>
           <button onClick={fetchDatos} className="p-2.5 bg-gray-50 rounded-xl border border-gray-200"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
           <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 text-white rounded-xl font-bold text-xs shadow-sm hover:bg-gray-900">
-            <PlusCircle className="w-4 h-4" /> Registrar Gasto Hogar
+            <PlusCircle className="w-4 h-4" /> Gasto del Hogar
           </button>
         </div>
       </div>
 
-      {/* METRICAS DEL GRUPO */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div><p className="text-xs font-medium text-gray-400 uppercase">Total Gastos Casa</p><h3 className="text-xl font-bold text-gray-800 mt-1">${metrics.totalGastos.toLocaleString('es-CO')}</h3></div>
-          <div className="p-2.5 bg-gray-50 text-gray-600 rounded-xl"><Users className="w-5 h-5" /></div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div><p className="text-xs font-medium text-gray-400 uppercase">Aportó Eduin</p><h3 className="text-xl font-bold text-emerald-600 mt-1">${metrics.pusoEduin.toLocaleString('es-CO')}</h3></div>
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><ArrowUpRight className="w-5 h-5" /></div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div><p className="text-xs font-medium text-gray-400 uppercase">Aportó Majo</p><h3 className="text-xl font-bold text-rose-600 mt-1">${metrics.pusoMajo.toLocaleString('es-CO')}</h3></div>
-          <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><ArrowUpRight className="w-5 h-5" /></div>
-        </div>
-      </div>
-
-      {/* BALANCE DE CUENTAS EQUITATIVO */}
-      <div className="bg-amber-50 border border-amber-200/60 p-4 rounded-2xl flex items-center gap-3">
-        <div className="p-2 bg-white text-amber-600 rounded-xl shadow-sm"><Scale className="w-5 h-5" /></div>
+      {/* MÉTRICA REINA: ¿CUÁNTO VALE LA CASA? */}
+      <div className="bg-gradient-to-r from-gray-900 to-slate-800 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h4 className="text-sm font-bold text-amber-900">Cierre Contable de Pareja</h4>
-          <p className="text-xs text-amber-700 mt-0.5 font-medium">{metrics.balanceMensaje}</p>
+          <p className="text-xs font-medium text-slate-300 uppercase tracking-wider">Costo Total de Mantener la Casa</p>
+          <h2 className="text-3xl font-black mt-1">${metrics.totalGastos.toLocaleString('es-CO')}</h2>
+          <p className="text-xs text-slate-400 mt-1">Suma acumulada de facturas, arriendo y mercado comunes.</p>
+        </div>
+        <div className="p-3 bg-white/10 text-white rounded-xl self-start sm:self-center">
+          <Users className="w-6 h-6" />
         </div>
       </div>
 
-      {/* DISTRIBUCIÓN DE CONSUMO DE LA CASA */}
+      {/* 📊 NUEVA COMPOSICIÓN DEL APORTE (SIN DEUDAS) */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-        <h3 className="text-sm font-semibold text-gray-700">Gastos del Hogar por Categoría</h3>
-        {metrics.distribucion.length === 0 ? (<p className="text-xs text-gray-400 text-center py-2">Sin gastos registrados en la casa.</p>) : (
-          <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+          <PieChart className="w-4 h-4 text-gray-500" /> Origen de los Fondos de la Casa
+        </h3>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Tarjeta Eduin */}
+          <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100/40 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-indigo-900">Pagado por Eduin</span>
+              <span className="text-xs font-bold text-indigo-700">{metrics.pctEduin.toFixed(1)}%</span>
+            </div>
+            <p className="text-lg font-bold text-gray-800">${metrics.pusoEduin.toLocaleString('es-CO')}</p>
+            <div className="w-full bg-indigo-100 h-1.5 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-600" style={{ width: `${metrics.pctEduin}%` }} />
+            </div>
+          </div>
+
+          {/* Tarjeta Majo */}
+          <div className="p-4 rounded-xl bg-rose-50/50 border border-rose-100/40 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-rose-900">Pagado por Majo</span>
+              <span className="text-xs font-bold text-rose-700">{metrics.pctMajo.toFixed(1)}%</span>
+            </div>
+            <p className="text-lg font-bold text-gray-800">${metrics.pusoMajo.toLocaleString('es-CO')}</p>
+            <div className="w-full bg-rose-100 h-1.5 rounded-full overflow-hidden">
+              <div className="h-full bg-rose-500" style={{ width: `${metrics.pctMajo}%` }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* DISTRIBUCIÓN POR CATEGORÍA DEL HOGAR */}
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+        <h3 className="text-sm font-semibold text-gray-700">¿En qué se va la plata del hogar?</h3>
+        {metrics.distribucion.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-4">Sin gastos de casa en este mes.</p>
+        ) : (
+          <div className="space-y-3.5">
             {metrics.distribucion.map(cat => (
               <div key={cat.name} className="space-y-1">
-                <div className="flex justify-between text-xs font-medium text-gray-600"><span>{cat.name}</span><span>${cat.value.toLocaleString('es-CO')} ({cat.porcentaje.toFixed(1)}%)</span></div>
-                <div className="w-full bg-gray-50 h-2 rounded-full overflow-hidden"><div className="h-full bg-gray-700" style={{ width: `${cat.porcentaje}%` }} /></div>
+                <div className="flex justify-between text-xs font-medium text-gray-600">
+                  <span>{cat.name}</span>
+                  <span>${cat.value.toLocaleString('es-CO')} ({cat.porcentaje.toFixed(1)}%)</span>
+                </div>
+                <div className="w-full bg-gray-50 h-2 rounded-full overflow-hidden">
+                  <div className="h-full bg-slate-700" style={{ width: `${cat.porcentaje}%` }} />
+                </div>
               </div>
             ))}
           </div>
