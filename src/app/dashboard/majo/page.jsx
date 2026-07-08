@@ -122,7 +122,7 @@ export default function MajoDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-rose-50 to-white p-4 rounded-2xl border border-rose-100/50"><span className="text-xs font-medium text-rose-600 uppercase tracking-wider">Capacidad de Ahorro</span><h4 className="text-2xl font-bold text-gray-800 mt-1">{metrics.capacidadAhorro.toFixed(1)}%</h4></div>
-        <div className="bg-gradient-to-br from-amber-50 to-white p-4 rounded-2xl border border-amber-100/50"><span className="text-xs font-medium text-amber-600 uppercase tracking-wider">Quema Promedio Diaria</span><h4 className="text-2xl font-bold text-gray-800 mt-1">${Math.round(metrics.gastoDiario).toLocaleString('es-CO')}</h4></div>
+        <div className="bg-gradient-to-br from-amber-50 to-white p-4 rounded-2xl border border-amber-100/50"><span className="text-xs font-medium text-amber-600 uppercase tracking-wider">Gasto Promedio Diario</span><h4 className="text-2xl font-bold text-gray-800 mt-1">${Math.round(metrics.gastoDiario).toLocaleString('es-CO')}</h4></div>
       </div>
 
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
