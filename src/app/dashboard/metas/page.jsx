@@ -8,12 +8,12 @@ export default function MetasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [metas, setMetas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
-  const [casillas, setCasillas] = useState([]); // Guardar las casillas del tablero activo
+  const [casillas, setCasillas] = useState([]); 
   const [loading, setLoading] = useState(true);
   
   // Abonos
   const [selectedMeta, setSelectedMeta] = useState(null);
-  const [metaVerTablero, setMetaVerTablero] = useState(null); // Ver cartón interactivo
+  const [metaVerTablero, setMetaVerTablero] = useState(null); 
   
   const [montoAbono, setMontoAbono] = useState('');
   const [casillaSeleccionada, setCasillaSeleccionada] = useState(null);
@@ -39,7 +39,6 @@ export default function MetasPage() {
       if (errorCuentas) throw errorCuentas;
       setCuentas(dataCuentas || []);
 
-      // Si hay un tablero abierto en pantalla, refrescar sus casillas también
       if (metaVerTablero) {
         cargarCasillasTablero(metaVerTablero.id);
       }
@@ -70,7 +69,7 @@ export default function MetasPage() {
   };
 
   const handleClickCasilla = (casilla) => {
-    if (casilla.tachada) return; // Evitar tocar lo ya guardado
+    if (casilla.tachada) return; 
     setCasillaSeleccionada(casilla);
     setMontoAbono(casilla.valor.toString());
     setSelectedMeta(metaVerTablero);
@@ -91,14 +90,12 @@ export default function MetasPage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
-      // 1. Actualizar el acumulado monetario de la meta
       const { error: errorMeta } = await supabase
         .from('metas')
         .update({ monto_actual: nuevoActual, activa: sigueActiva })
         .eq('id', selectedMeta.id);
       if (errorMeta) throw errorMeta;
 
-      // 2. Si venía de una casilla del tablero, tachalá de forma permanente
       if (casillaSeleccionada) {
         const { error: errorTachas } = await supabase
           .from('casillas_metas')
@@ -107,7 +104,6 @@ export default function MetasPage() {
         if (errorTachas) throw errorTachas;
       }
 
-      // 3. Crear la transacción de gasto contable
       const nombreCuentaOrig = cuentas.find(c => c.id === parseInt(cuentaOrigen))?.nombre_cuenta || 'Cuenta';
       const { error: errorTx } = await supabase
         .from('transacciones')
@@ -144,7 +140,6 @@ export default function MetasPage() {
   return (
     <div className="p-4 max-w-5xl mx-auto space-y-6">
       
-      {/* Cabecera */}
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
         <div>
           <h2 className="text-xl font-black text-gray-800">Propósitos y Metas</h2>
@@ -169,7 +164,6 @@ export default function MetasPage() {
         <div className="text-center py-12 text-sm text-gray-400 font-medium">Sincronizando alcancías...</div>
       ) : metaVerTablero ? (
         
-        /* MÓDULO INTERACTIVO DE TABLERO DE CASILLAS (RETO DE AHORRO) */
         <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-6 max-w-2xl mx-auto">
           <div className="text-center space-y-1">
             <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-2.5 py-1 rounded-full uppercase">Alcancía Virtual Activa</span>
@@ -179,7 +173,6 @@ export default function MetasPage() {
             </p>
           </div>
 
-          {/* Grilla responsiva idéntica al cartón físico */}
           <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 p-1 bg-gray-50 rounded-2xl border border-gray-100 max-h-96 overflow-y-auto scrollbar-none">
             {casillas.map((casilla) => (
               <button
@@ -201,7 +194,6 @@ export default function MetasPage() {
 
       ) : (
         
-        /* VISTA GENERAL DE METAS */
         <div className="space-y-8">
           <div>
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-1.5"><Target className="w-4 h-4 text-purple-500" /> Metas y Retos en Curso ({metasActivas.length})</h3>
@@ -249,7 +241,6 @@ export default function MetasPage() {
             )}
           </div>
 
-          {/* CUMPLIDAS */}
           {metasCumplidas.length > 0 && (
             <div className="pt-4 border-t border-gray-100">
               <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-4 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Objetivos Alcanzados 🎉 ({metasCumplidas.length})</h3>
@@ -269,7 +260,6 @@ export default function MetasPage() {
         </div>
       )}
 
-      {/* MODAL CONVENIENTE DE CONFIRMACIÓN DE ABONOS */}
       {selectedMeta && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl w-full max-w-xs overflow-hidden shadow-xl border border-gray-100">
@@ -297,8 +287,7 @@ export default function MetasPage() {
         </div>
       )}
 
-      <MetaForm isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onActionSuccess={fetchDatosInitiales} />
-      
+      <MetaForm isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onActionSuccess={fetchDatosIniciales} />
     </div>
   );
 }
