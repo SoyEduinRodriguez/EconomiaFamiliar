@@ -127,14 +127,17 @@ export default function EduinDashboard() {
         </div>
       </div>
 
-      {/* PROGRESO */}
+      {/* MEDIDOR DE CONSUMO CORREGIDO */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-2">
         <div className="flex justify-between items-center text-xs font-bold text-gray-700">
           <span>Relación Gasto/Ingreso Histórica</span>
           <span>{metrics.pctConsumo.toFixed(1)}%</span>
         </div>
         <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-          <div className={`h-full transition-all duration-500 ${metrics.pctConsumo > 85 ? 'bg-rose-500' : 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(metrics.pctConsumo, 100)}%` }} />
+          <div 
+            className={`h-full transition-all duration-500 ${metrics.pctConsumo > 85 ? 'bg-rose-500' : metrics.pctConsumo > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
+            style={{ width: `${Math.min(metrics.pctConsumo, 100)}%` }} 
+          />
         </div>
       </div>
 
