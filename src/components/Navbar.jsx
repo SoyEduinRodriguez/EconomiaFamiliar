@@ -1,12 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Users, Target, LayoutDashboard } from 'lucide-react';
+import { User, Users, Target, LayoutDashboard, ListTodo } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
 
   const menuItems = [
+  
     { name: 'Eduin', href: '/dashboard/eduin', icon: User },
     { name: 'Majo', href: '/dashboard/majo', icon: User },
     { name: 'Hogar', href: '/dashboard/hogar', icon: Users },
