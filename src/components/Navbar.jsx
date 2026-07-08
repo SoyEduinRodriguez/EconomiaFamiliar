@@ -11,6 +11,7 @@ export default function Navbar() {
     { name: 'Majo', href: '/dashboard/majo', icon: User },
     { name: 'Hogar', href: '/dashboard/hogar', icon: Users },
     { name: 'Metas', href: '/dashboard/metas', icon: Target },
+    { name: 'Lista', href: '/dashboard/todos', icon: ListTodo },
   ];
 
   return (
