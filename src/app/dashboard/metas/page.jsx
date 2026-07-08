@@ -1,13 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { PlusCircle, Target, CheckCircle2, TrendingUp, RefreshCw, DollarSign, X, ArrowRightLeft } from 'lucide-react';
+import { PlusCircle, Target, CheckCircle2, TrendingUp, RefreshCw, DollarSign, X, ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MetaForm from '../../../components/MetaForm';
 
 export default function MetasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [metas, setMetas] = useState([]);
-  const [cuentas, setCuentas] = useState([]); // 👈 Guardar cuentas bancarias
+  const [cuentas, setCuentas] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Estados para el abono estructurado
@@ -17,10 +17,16 @@ export default function MetasPage() {
   const [cuentaDestino, setCuentaDestino] = useState('');
   const [abonando, setAbonando] = useState(false);
 
+  // Estados para MODIFICAR META
+  const [editingMeta, setEditingMeta] = useState(null);
+  const [nuevoNombreMeta, setNuevoNombreMeta] = useState('');
+  const [nuevoMontoTotal, setNuevoMontoTotal] = useState('');
+  const [nuevaFechaLimite, setNuevaFechaLimite] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+
   const fetchDatosIniciales = async () => {
     setLoading(true);
     try {
-      // 1. Cargar Metas
       const { data: dataMetas, error: errorMetas } = await supabase
         .from('metas')
         .select('*')
@@ -28,7 +34,6 @@ export default function MetasPage() {
       if (errorMetas) throw errorMetas;
       setMetas(dataMetas || []);
 
-      // 2. Cargar Cuentas Bancarias registradas
       const { data: dataCuentas, error: errorCuentas } = await supabase
         .from('cuentas_bancarias')
         .select('*')
@@ -60,10 +65,8 @@ export default function MetasPage() {
     const sigueActiva = nuevoActual < parseFloat(selectedMeta.monto_total);
 
     try {
-      // OBTENER SESIÓN ACTUAL PARA EL USER_ID DE LA TRANSACCIÓN
       const { data: { user } } = await supabase.auth.getUser();
 
-      // ACCIÓN 1: Actualizar el acumulado de la meta
       const { error: errorMeta } = await supabase
         .from('metas')
         .update({ 
@@ -74,7 +77,6 @@ export default function MetasPage() {
 
       if (errorMeta) throw errorMeta;
 
-      // ACCIÓN 2: Insertar la transacción contable automática (Gasto de la cuenta origen)
       const nombreCuentaOrig = cuentas.find(c => c.id === parseInt(cuentaOrigen))?.nombre_cuenta || 'Cuenta';
       const nombreCuentaDest = cuentas.find(c => c.id === parseInt(cuentaDestino))?.nombre_cuenta || 'Destino';
 
@@ -83,19 +85,18 @@ export default function MetasPage() {
         .insert([
           {
             user_id: user?.id || null,
-            tipo_transaccion: 'gasto', // Descuenta saldo de tu billetera principal
-            scope: 'hogar', // Clasificado como ahorro común del hogar
+            tipo_transaccion: 'gasto',
+            scope: 'hogar',
             monto: valorAbono,
             descripcion: `Abono meta: ${selectedMeta.nombre_meta} (${nombreCuentaOrig} ➡️ ${nombreCuentaDest})`,
             meta_id: selectedMeta.id,
-            cuenta_id: parseInt(cuentaOrigen), // Atado a la cuenta física de donde salió el dinero
+            cuenta_id: parseInt(cuentaOrigen),
             estado: 'activo'
           }
         ]);
 
       if (errorTx) throw errorTx;
 
-      // Resetear estados y recargar
       setMontoAbono('');
       setCuentaOrigen('');
       setCuentaDestino('');
@@ -106,6 +107,60 @@ export default function MetasPage() {
       alert('Error al registrar el abono contable: ' + err.message);
     } finally {
       setAbonando(false);
+    }
+  };
+
+  // 🗑️ Función para ELIMINAR META
+  const handleEliminarMeta = async (id, nombre) => {
+    if (!window.confirm(`🚨 ¿Estás seguro de eliminar permanentemente la meta "${nombre}"? Esto no borrará tus transacciones pasadas.`)) return;
+    try {
+      const { error } = await supabase
+        .from('metas')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchDatosIniciales();
+    } catch (err) {
+      alert('Error al eliminar la meta: ' + err.message);
+    }
+  };
+
+  // ✏️ Abrir modal de edición precargando valores
+  const iniciarEdicionMeta = (meta) => {
+    setEditingMeta(meta);
+    setNuevoNombreMeta(meta.nombre_meta);
+    setNuevoMontoTotal(meta.monto_total);
+    setNuevaFechaLimite(meta.fecha_limite || '');
+  };
+
+  // 💾 Guardar cambios de EDICIÓN META
+  const handleGuardarEdicionMeta = async (e) => {
+    e.preventDefault();
+    if (!editingMeta || !nuevoNombreMeta || !nuevoMontoTotal) return;
+    setGuardandoEdicion(true);
+
+    // Validar si con el nuevo monto total ya se cumplió el propósito
+    const sigueActiva = parseFloat(editingMeta.monto_actual) < parseFloat(nuevoMontoTotal);
+
+    try {
+      const { error } = await supabase
+        .from('metas')
+        .update({
+          nombre_meta: nuevoNombreMeta,
+          monto_total: parseFloat(nuevoMontoTotal),
+          fecha_limite: nuevaFechaLimite || null,
+          activa: sigueActiva
+        })
+        .eq('id', editingMeta.id);
+
+      if (error) throw error;
+      setEditingMeta(null);
+      fetchDatosIniciales();
+    } catch (err) {
+      alert('Error al modificar meta: ' + err.message);
+    } finally {
+      setGuardandoEdicion(false);
     }
   };
 
@@ -159,10 +214,29 @@ export default function MetasPage() {
                     <div key={meta.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between space-y-4">
                       <div>
                         <div className="flex justify-between items-start">
-                          <h4 className="font-black text-gray-800 text-base">{meta.nombre_meta}</h4>
-                          <span className="text-xs font-black px-2 py-1 bg-purple-50 text-purple-600 rounded-lg">
-                            {pct}%
-                          </span>
+                          <h4 className="font-black text-gray-800 text-base break-words max-w-[70%]">{meta.nombre_meta}</h4>
+                          
+                          {/* BOTONES DE EDICIÓN Y ELIMINACIÓN DE LA TARJETA */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black px-2 py-1 bg-purple-50 text-purple-600 rounded-lg">
+                              {pct}%
+                            </span>
+                            <button 
+                              onClick={() => iniciarEdicionMeta(meta)}
+                              className="p-1 text-gray-300 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors"
+                              title="Editar meta"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                              onClick={() => handleEliminarMeta(meta.id, meta.nombre_meta)}
+                              className="p-1 text-gray-300 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors"
+                              title="Eliminar meta"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
                         </div>
                         {meta.fecha_limite && (
                           <p className="text-xs text-gray-400 mt-1 font-medium">Meta para: {meta.fecha_limite}</p>
@@ -207,7 +281,16 @@ export default function MetasPage() {
                       <h4 className="font-bold text-emerald-900 text-sm line-through decoration-emerald-300">{meta.nombre_meta}</h4>
                       <p className="text-xs text-emerald-600 font-bold mt-0.5">Total: ${parseFloat(meta.monto_total).toLocaleString('es-CO')}</p>
                     </div>
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500 flex-shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleEliminarMeta(meta.id, meta.nombre_meta)}
+                        className="p-1.5 text-emerald-300 hover:text-red-500 rounded-lg"
+                        title="Eliminar meta cumplida"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <CheckCircle2 className="w-6 h-6 text-emerald-500 flex-shrink-0" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -217,7 +300,7 @@ export default function MetasPage() {
         </div>
       )}
 
-      {/* MODAL AVANZADO PARA ABONAR (CON ORIGEN Y DESTINO) */}
+      {/* MODAL PARA ABONAR */}
       {selectedMeta && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-xl border border-gray-100">
@@ -233,7 +316,6 @@ export default function MetasPage() {
                 Registrar ahorro para <span className="font-black text-purple-700">"{selectedMeta.nombre_meta}"</span>
               </p>
 
-              {/* Input de Monto */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Monto a Guardar</label>
                 <div className="relative">
@@ -245,19 +327,18 @@ export default function MetasPage() {
                     placeholder="0"
                     value={montoAbono}
                     onChange={(e) => setMontoAbono(e.target.value)}
-                    className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Select Cuenta Origen */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">¿De dónde sale el dinero? (Origen)</label>
                 <select
                   required
                   value={cuentaOrigen}
                   onChange={(e) => setCuentaOrigen(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-gray-50 focus:outline-none"
                 >
                   <option value="">-- Selecciona cuenta de retiro --</option>
                   {cuentas.map(c => (
@@ -266,19 +347,17 @@ export default function MetasPage() {
                 </select>
               </div>
 
-              {/* Icono de enlace */}
               <div className="flex justify-center my-1 text-purple-400">
                 <ArrowRightLeft className="w-4 h-4 rotate-90" />
               </div>
 
-              {/* Select Cuenta Destino */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">¿A qué cuenta va el ahorro? (Destino)</label>
                 <select
                   required
                   value={cuentaDestino}
                   onChange={(e) => setCuentaDestino(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-gray-50 focus:outline-none"
                 >
                   <option value="">-- Selecciona cuenta de depósito --</option>
                   {cuentas.map(c => (
@@ -293,6 +372,65 @@ export default function MetasPage() {
                 className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition-all mt-2"
               >
                 {abonando ? 'Procesando movimiento...' : 'Confirmar y Descontar Balance'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA EDITAR LA CONFIGURACIÓN DE LA META */}
+      {editingMeta && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-xl border border-gray-100">
+            <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+              <span className="text-xs font-black text-gray-500 uppercase">Modificar Propósito</span>
+              <button onClick={() => setEditingMeta(null)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleGuardarEdicionMeta} className="p-5 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Nombre del Propósito</label>
+                <input
+                  type="text"
+                  required
+                  value={nuevoNombreMeta}
+                  onChange={(e) => setNuevoNombreMeta(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Monto Objetivo ($)</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
+                  <input
+                    type="number"
+                    required
+                    value={nuevoMontoTotal}
+                    onChange={(e) => setNuevoMontoTotal(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2.5 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Fecha Límite (Opcional)</label>
+                <input
+                  type="date"
+                  value={nuevaFechaLimite}
+                  onChange={(e) => setNuevaFechaLimite(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={guardandoEdicion}
+                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all"
+              >
+                {guardandoEdicion ? 'Actualizando...' : 'Guardar Cambios'}
               </button>
             </form>
           </div>
