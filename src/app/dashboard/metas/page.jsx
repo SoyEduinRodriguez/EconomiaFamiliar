@@ -1,50 +1,70 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { PlusCircle, Target, CheckCircle2, TrendingUp, RefreshCw, DollarSign, X } from 'lucide-react';
+import { PlusCircle, Target, CheckCircle2, TrendingUp, RefreshCw, DollarSign, X, ArrowRightLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MetaForm from '../../../components/MetaForm';
 
 export default function MetasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [metas, setMetas] = useState([]);
+  const [cuentas, setCuentas] = useState([]); // 👈 Guardar cuentas bancarias
   const [loading, setLoading] = useState(true);
   
+  // Estados para el abono estructurado
   const [selectedMeta, setSelectedMeta] = useState(null);
   const [montoAbono, setMontoAbono] = useState('');
+  const [cuentaOrigen, setCuentaOrigen] = useState('');
+  const [cuentaDestino, setCuentaDestino] = useState('');
   const [abonando, setAbonando] = useState(false);
 
-  const fetchMetas = async () => {
+  const fetchDatosIniciales = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Cargar Metas
+      const { data: dataMetas, error: errorMetas } = await supabase
         .from('metas')
         .select('*')
         .order('created_at', { ascending: true });
+      if (errorMetas) throw errorMetas;
+      setMetas(dataMetas || []);
 
-      if (error) throw error;
-      setMetas(data || []);
+      // 2. Cargar Cuentas Bancarias registradas
+      const { data: dataCuentas, error: errorCuentas } = await supabase
+        .from('cuentas_bancarias')
+        .select('*')
+        .order('nombre_cuenta', { ascending: true });
+      if (errorCuentas) throw errorCuentas;
+      setCuentas(dataCuentas || []);
+
     } catch (err) {
-      console.error('Error cargando metas:', err.message);
+      console.error('Error cargando datos de metas/cuentas:', err.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMetas();
+    fetchDatosIniciales();
   }, []);
 
   const handleAbonar = async (e) => {
     e.preventDefault();
-    if (!selectedMeta || !montoAbono) return;
+    if (!selectedMeta || !montoAbono || !cuentaOrigen || !cuentaDestino) {
+      alert('Por favor completa todos los campos del abono.');
+      return;
+    }
     setAbonando(true);
 
-    const nuevoActual = parseFloat(selectedMeta.monto_actual) + parseFloat(montoAbono);
-    // Si iguala o supera el monto total, activa pasa a false (ya no está activa)
+    const valorAbono = parseFloat(montoAbono);
+    const nuevoActual = parseFloat(selectedMeta.monto_actual) + valorAbono;
     const sigueActiva = nuevoActual < parseFloat(selectedMeta.monto_total);
 
     try {
-      const { error } = await supabase
+      // OBTENER SESIÓN ACTUAL PARA EL USER_ID DE LA TRANSACCIÓN
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // ACCIÓN 1: Actualizar el acumulado de la meta
+      const { error: errorMeta } = await supabase
         .from('metas')
         .update({ 
           monto_actual: nuevoActual,
@@ -52,32 +72,57 @@ export default function MetasPage() {
         })
         .eq('id', selectedMeta.id);
 
-      if (error) throw error;
+      if (errorMeta) throw errorMeta;
 
+      // ACCIÓN 2: Insertar la transacción contable automática (Gasto de la cuenta origen)
+      const nombreCuentaOrig = cuentas.find(c => c.id === parseInt(cuentaOrigen))?.nombre_cuenta || 'Cuenta';
+      const nombreCuentaDest = cuentas.find(c => c.id === parseInt(cuentaDestino))?.nombre_cuenta || 'Destino';
+
+      const { error: errorTx } = await supabase
+        .from('transacciones')
+        .insert([
+          {
+            user_id: user?.id || null,
+            tipo_transaccion: 'gasto', // Descuenta saldo de tu billetera principal
+            scope: 'hogar', // Clasificado como ahorro común del hogar
+            monto: valorAbono,
+            descripcion: `Abono meta: ${selectedMeta.nombre_meta} (${nombreCuentaOrig} ➡️ ${nombreCuentaDest})`,
+            meta_id: selectedMeta.id,
+            cuenta_id: parseInt(cuentaOrigen), // Atado a la cuenta física de donde salió el dinero
+            estado: 'activo'
+          }
+        ]);
+
+      if (errorTx) throw errorTx;
+
+      // Resetear estados y recargar
       setMontoAbono('');
+      setCuentaOrigen('');
+      setCuentaDestino('');
       setSelectedMeta(null);
-      fetchMetas();
+      fetchDatosIniciales();
+      alert('¡Abono registrado y procesado contablemente!');
     } catch (err) {
-      alert('Error al registrar el abono: ' + err.message);
+      alert('Error al registrar el abono contable: ' + err.message);
     } finally {
       setAbonando(false);
     }
   };
 
-  // Filtrado impecable usando tu booleano 'activa'
   const metasActivas = metas.filter(m => m.activa === true);
   const metasCumplidas = metas.filter(m => m.activa === false);
 
   return (
     <div className="p-4 max-w-5xl mx-auto space-y-6">
       
+      {/* Cabecera */}
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
         <div>
           <h2 className="text-xl font-black text-gray-800">Propósitos y Metas</h2>
           <p className="text-xs text-gray-400 font-medium">Sueños por cumplir y objetivos en pareja</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={fetchMetas} className="p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200">
+          <button onClick={fetchDatosIniciales} className="p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button 
@@ -91,11 +136,11 @@ export default function MetasPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-sm text-gray-400 font-medium">Cargando tus sueños...</div>
+        <div className="text-center py-12 text-sm text-gray-400 font-medium">Sincronizando cuentas y metas...</div>
       ) : (
         <div className="space-y-8">
           
-          {/* SECCIÓN METAS ACTIVAS */}
+          {/* METAS ACTIVAS */}
           <div>
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <Target className="w-4 h-4 text-purple-500" />
@@ -104,7 +149,7 @@ export default function MetasPage() {
 
             {metasActivas.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-sm text-gray-400 max-w-xl mx-auto">
-                No hay metas activas en este momento. ¡Propón tu primer objetivo juntos hoy!
+                No hay metas activas. ¡Propón tu primer objetivo juntos hoy!
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -126,10 +171,7 @@ export default function MetasPage() {
 
                       <div className="space-y-1">
                         <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                          <div 
-                            className="bg-purple-600 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%` }}
-                          />
+                          <div className="bg-purple-600 h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                         </div>
                         <div className="flex justify-between text-xs font-bold text-gray-400">
                           <span>${parseFloat(meta.monto_actual).toLocaleString('es-CO')}</span>
@@ -151,22 +193,19 @@ export default function MetasPage() {
             )}
           </div>
 
-          {/* SECCIÓN METAS CUMPLIDAS */}
+          {/* METAS CUMPLIDAS */}
           {metasCumplidas.length > 0 && (
             <div className="pt-4 border-t border-gray-100">
               <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
                 Metas Cumplidas 🎉 ({metasCumplidas.length})
               </h3>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {metasCumplidas.map((meta) => (
                   <div key={meta.id} className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
                     <div>
                       <h4 className="font-bold text-emerald-900 text-sm line-through decoration-emerald-300">{meta.nombre_meta}</h4>
-                      <p className="text-xs text-emerald-600 font-bold mt-0.5">
-                        ¡Objetivo alcanzado! Total: ${parseFloat(meta.monto_total).toLocaleString('es-CO')}
-                      </p>
+                      <p className="text-xs text-emerald-600 font-bold mt-0.5">Total: ${parseFloat(meta.monto_total).toLocaleString('es-CO')}</p>
                     </div>
                     <CheckCircle2 className="w-6 h-6 text-emerald-500 flex-shrink-0" />
                   </div>
@@ -178,49 +217,89 @@ export default function MetasPage() {
         </div>
       )}
 
-      {/* MODAL CORTINA PARA ABONAR */}
+      {/* MODAL AVANZADO PARA ABONAR (CON ORIGEN Y DESTINO) */}
       {selectedMeta && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-xs overflow-hidden shadow-xl border border-gray-100">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-xl border border-gray-100">
             <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-              <span className="text-xs font-black text-gray-500 uppercase">Abonar saldo</span>
+              <span className="text-xs font-black text-gray-500 uppercase">Configurar Abono Contable</span>
               <button onClick={() => setSelectedMeta(null)} className="p-1 rounded-full hover:bg-gray-200 text-gray-400">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleAbonar} className="p-4 space-y-4">
-              <p className="text-xs font-medium text-gray-600 text-center">
-                ¿Cuánto vas a guardar para <span className="font-bold text-gray-800">"{selectedMeta.nombre_meta}"</span>?
+            
+            <form onSubmit={handleAbonar} className="p-5 space-y-4">
+              <p className="text-xs font-medium text-gray-500 text-center">
+                Registrar ahorro para <span className="font-black text-purple-700">"{selectedMeta.nombre_meta}"</span>
               </p>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
-                <input
-                  type="number"
-                  required
-                  autoFocus
-                  placeholder="0"
-                  value={montoAbono}
-                  onChange={(e) => setMontoAbono(e.target.value)}
-                  className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none"
-                />
+
+              {/* Input de Monto */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Monto a Guardar</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500" />
+                  <input
+                    type="number"
+                    required
+                    autoFocus
+                    placeholder="0"
+                    value={montoAbono}
+                    onChange={(e) => setMontoAbono(e.target.value)}
+                    className="w-full pl-8 pr-4 py-2.5 border border-gray-200 rounded-xl font-bold text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
               </div>
+
+              {/* Select Cuenta Origen */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">¿De dónde sale el dinero? (Origen)</label>
+                <select
+                  required
+                  value={cuentaOrigen}
+                  onChange={(e) => setCuentaOrigen(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">-- Selecciona cuenta de retiro --</option>
+                  {cuentas.map(c => (
+                    <option key={c.id} value={c.id}>💳 {c.nombre_cuenta}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Icono de enlace */}
+              <div className="flex justify-center my-1 text-purple-400">
+                <ArrowRightLeft className="w-4 h-4 rotate-90" />
+              </div>
+
+              {/* Select Cuenta Destino */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">¿A qué cuenta va el ahorro? (Destino)</label>
+                <select
+                  required
+                  value={cuentaDestino}
+                  onChange={(e) => setCuentaDestino(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-xs font-bold text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">-- Selecciona cuenta de depósito --</option>
+                  {cuentas.map(c => (
+                    <option key={c.id} value={c.id}>💰 {c.nombre_cuenta}</option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 type="submit"
                 disabled={abonando}
-                className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl"
+                className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition-all mt-2"
               >
-                {abonando ? 'Guardando...' : 'Confirmar Abono'}
+                {abonando ? 'Procesando movimiento...' : 'Confirmar y Descontar Balance'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      <MetaForm 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onActionSuccess={fetchMetas}
-      />
+      <MetaForm isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onActionSuccess={fetchDatosIniciales} />
 
     </div>
   );
