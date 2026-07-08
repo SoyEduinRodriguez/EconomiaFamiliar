@@ -298,6 +298,7 @@ export default function MetasPage() {
       )}
 
       <MetaForm isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onActionSuccess={fetchDatosInitiales} />
+      
     </div>
   );
 }
