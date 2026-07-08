@@ -166,7 +166,7 @@ export default function EduinDashboard() {
           <h4 className="text-2xl font-bold text-gray-800 mt-1">{metrics.capacidadAhorro.toFixed(1)}%</h4>
         </div>
         <div className="bg-gradient-to-br from-amber-50 to-white p-4 rounded-2xl border border-amber-100/50">
-          <span className="text-xs font-medium text-amber-600 uppercase tracking-wider">Quema Promedio Diaria</span>
+          <span className="text-xs font-medium text-amber-600 uppercase tracking-wider">Gasto Promedio Diario</span>  
           <h4 className="text-2xl font-bold text-gray-800 mt-1">${Math.round(metrics.gastoDiario).toLocaleString('es-CO')}</h4>
         </div>
       </div>
