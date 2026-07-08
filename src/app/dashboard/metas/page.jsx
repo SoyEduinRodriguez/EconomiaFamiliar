@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { PlusCircle, Target, CheckCircle2, RefreshCw, DollarSign, X, ArrowRightLeft, Trophy, Check } from 'lucide-react';
+import { PlusCircle, Target, CheckCircle2, RefreshCw, DollarSign, X, ArrowRightLeft, Trophy, Check, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MetaForm from '../../../components/MetaForm';
 
@@ -63,6 +63,23 @@ export default function MetasPage() {
     fetchDatosIniciales();
   }, [metaVerTablero]);
 
+  // 🗑️ Función para ELIMINAR una meta por completo (Borrando también sus casillas en cascada)
+  const handleEliminarMeta = async (id, nombreMeta) => {
+    if (!window.confirm(`¿Estás seguro de eliminar permanentemente la meta "${nombreMeta}" y todo su progreso?`)) return;
+    try {
+      const { error } = await supabase
+        .from('metas')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      alert('Meta eliminada correctamente.');
+      fetchDatosIniciales();
+    } catch (err) {
+      alert('Error al eliminar la meta: ' + err.message);
+    }
+  };
+
   const handleAbrirTablero = (meta) => {
     setMetaVerTablero(meta);
     cargarCasillasTablero(meta.id);
@@ -78,7 +95,7 @@ export default function MetasPage() {
   const handleAbonar = async (e) => {
     e.preventDefault();
     if (!selectedMeta || !montoAbono || !cuentaOrigen) {
-      alert('Completa los campos requeridos.');
+      alert('Completa los campos.');
       return;
     }
     setAbonando(true);
@@ -140,6 +157,7 @@ export default function MetasPage() {
   return (
     <div className="p-4 max-w-5xl mx-auto space-y-6">
       
+      {/* Cabecera */}
       <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-xs">
         <div>
           <h2 className="text-xl font-black text-gray-800">Propósitos y Metas</h2>
@@ -164,6 +182,7 @@ export default function MetasPage() {
         <div className="text-center py-12 text-sm text-gray-400 font-medium">Sincronizando alcancías...</div>
       ) : metaVerTablero ? (
         
+        /* CARTÓN INTERACTIVO */
         <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-6 max-w-2xl mx-auto">
           <div className="text-center space-y-1">
             <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-2.5 py-1 rounded-full uppercase">Alcancía Virtual Activa</span>
@@ -185,7 +204,7 @@ export default function MetasPage() {
                     : 'bg-white border-gray-200 text-gray-700 hover:bg-amber-50 hover:border-amber-400 hover:scale-105'
                 }`}
               >
-                {casilla.tachada ? <Check className="w-3.5 h-3.5 mb-0.5" /> : `$${casilla.valor}`}
+                {casilla.tachada ? <Check className="w-3.5 h-3.5 mb-0.5" /> : `$${parseFloat(casilla.valor).toLocaleString('es-CO')}`}
               </button>
             ))}
           </div>
@@ -194,6 +213,7 @@ export default function MetasPage() {
 
       ) : (
         
+        /* LISTADO DE METAS */
         <div className="space-y-8">
           <div>
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-1.5"><Target className="w-4 h-4 text-purple-500" /> Metas y Retos en Curso ({metasActivas.length})</h3>
@@ -203,11 +223,21 @@ export default function MetasPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {metasActivas.map((meta) => {
                   const pct = Math.min(Math.round((meta.monto_actual * 100) / meta.monto_total), 100);
-                  const esReto = meta.nombre_meta.includes('(Reto 1M)');
+                  const esReto = meta.nombre_meta.includes('(Alcancía');
 
                   return (
-                    <div key={meta.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between space-y-4">
-                      <div className="flex justify-between items-start">
+                    <div key={meta.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xs flex flex-col justify-between space-y-4 relative">
+                      
+                      {/* Botón discreto para borrar la meta */}
+                      <button 
+                        onClick={() => handleEliminarMeta(meta.id, meta.nombre_meta)}
+                        className="absolute top-4 right-4 p-1 text-gray-300 hover:text-red-500 rounded-lg transition-colors"
+                        title="Eliminar esta meta permanentemente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
+                      <div className="flex justify-between items-start pr-6">
                         <div>
                           <h4 className="font-black text-gray-800 text-base">{meta.nombre_meta}</h4>
                           {meta.fecha_limite && <p className="text-xs text-gray-400 mt-1 font-medium">Meta para: {meta.fecha_limite}</p>}
@@ -241,17 +271,24 @@ export default function MetasPage() {
             )}
           </div>
 
+          {/* CUMPLIDAS */}
           {metasCumplidas.length > 0 && (
             <div className="pt-4 border-t border-gray-100">
               <h3 className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-4 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Objetivos Alcanzados 🎉 ({metasCumplidas.length})</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {metasCumplidas.map((meta) => (
-                  <div key={meta.id} className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                  <div key={meta.id} className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex items-center justify-between relative">
+                    <button 
+                      onClick={() => handleEliminarMeta(meta.id, meta.nombre_meta)}
+                      className="absolute top-4 right-4 p-1 text-gray-300 hover:text-red-500 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <div>
                       <h4 className="font-bold text-emerald-900 text-sm line-through decoration-emerald-300">{meta.nombre_meta}</h4>
                       <p className="text-xs text-emerald-600 font-bold mt-0.5">¡Completado! Total: ${parseFloat(meta.monto_total).toLocaleString('es-CO')}</p>
                     </div>
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                    <CheckCircle2 className="w-6 h-6 text-emerald-500 mr-6" />
                   </div>
                 ))}
               </div>
