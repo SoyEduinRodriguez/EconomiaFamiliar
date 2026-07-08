@@ -14,11 +14,10 @@ export default function EduinDashboard() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
-      // Query global: Trae todo lo personal de Eduin + lo que él pagó del hogar de manera histórica
+      // Traemos todas las transacciones de la base de datos de manera limpia
       const { data, error } = await supabase
         .from('transacciones')
         .select('*')
-        .or(`and(scope.eq.personal,pagado_por.eq.eduin),and(scope.eq.hogar,pagado_por.eq.eduin)`)
         .order('fecha_transaccion', { ascending: false });
 
       if (error) throw error;
@@ -34,13 +33,29 @@ export default function EduinDashboard() {
     fetchDatos();
   }, []);
 
+  // FILTRADO SEGURO EN JAVASCRIPT
+  const filteredTransactions = useMemo(() => {
+    return transacciones.filter(tx => {
+      if (tx.estado === 'anulado') return false;
+      
+      // Si es un INGRESO: Es tuyo si el scope no es explícitamente de majo
+      if (tx.tipo_transaccion === 'ingreso') {
+        return tx.scope !== 'majo'; 
+      }
+      
+      // Si es un GASTO: Te pertenece si tú lo pagaste (sea personal o del hogar)
+      return tx.pagado_por === 'eduin';
+    });
+  }, [transacciones]);
+
+  // Cálculos de métricas
   const metrics = useMemo(() => {
     let ingresos = 0;
     let gastosPersonales = 0;
     let aportesHogar = 0;
     const categorias = {};
 
-    transacciones.filter(tx => tx.estado !== 'anulado').forEach(tx => {
+    filteredTransactions.forEach(tx => {
       const monto = parseFloat(tx.monto) || 0;
       if (tx.tipo_transaccion === 'ingreso') {
         ingresos += monto;
@@ -56,7 +71,6 @@ export default function EduinDashboard() {
     });
 
     const totalEgresos = gastosPersonales + aportesHogar;
-    // SALDO DISPONIBLE REAL ACUMULADO DESDE EL DÍA 1
     const saldoDisponible = ingresos - totalEgresos;
     const pctConsumo = ingresos > 0 ? (totalEgresos / ingresos) * 100 : 0;
 
@@ -67,14 +81,15 @@ export default function EduinDashboard() {
     })).sort((a, b) => b.value - a.value);
 
     return { ingresos, gastosPersonales, aportesHogar, totalEgresos, saldoDisponible, pctConsumo, distribucion };
-  }, [transacciones]);
+  }, [filteredTransactions]);
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 space-y-6">
+      {/* CABECERA */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">👨‍💻 Billetera de Eduin</h1>
-          <p className="text-xs text-gray-500">Flujo de caja consolidado histórico e ingresos reales.</p>
+          <p className="text-xs text-gray-500">Flujo de caja consolidado histórico con ingresos reales.</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <button onClick={fetchDatos} className="p-2.5 bg-gray-50 rounded-xl border border-gray-200"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
@@ -84,6 +99,7 @@ export default function EduinDashboard() {
         </div>
       </div>
 
+      {/* TARJETAS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
@@ -111,16 +127,18 @@ export default function EduinDashboard() {
         </div>
       </div>
 
+      {/* PROGRESO */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-2">
         <div className="flex justify-between items-center text-xs font-bold text-gray-700">
-          <span className="flex items-center gap-1"><TrendingUp className="w-4 h-4 text-gray-400" /> Relación Gasto/Ingreso Acumulada</span>
+          <span>Relación Gasto/Ingreso Histórica</span>
           <span>{metrics.pctConsumo.toFixed(1)}%</span>
         </div>
         <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-          <div className={`h-full transition-all duration-500 ${metrics.pctConsumo > 85 ? 'bg-rose-500' : metrics.pctConsumo > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(metrics.pctConsumo, 100)}%` }} />
+          <div className={`h-full transition-all duration-500 ${metrics.pctConsumo > 85 ? 'bg-rose-500' : 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(metrics.pctConsumo, 100)}%` }} />
         </div>
       </div>
 
+      {/* CATEGORÍAS */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-4">
         <h3 className="text-sm font-semibold text-gray-700">Desglose General de Egresos</h3>
         {metrics.distribucion.length === 0 ? (
@@ -143,7 +161,7 @@ export default function EduinDashboard() {
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-        <TransactionTable transacciones={transacciones} onActionSuccess={fetchDatos} />
+        <TransactionTable transacciones={filteredTransactions} onActionSuccess={fetchDatos} />
       </div>
 
       <TransactionForm isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} defaultPagadoPor="eduin" onActionSuccess={fetchDatos} />
